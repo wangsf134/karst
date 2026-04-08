@@ -1,8 +1,19 @@
-# app.py
+import sys
+import os
+# 强制把当前文件夹加入系统搜索路径
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import streamlit as st
 import pandas as pd
 import numpy as np
+import sys
+import os
 from typing import Dict, Any
+
+# ================= 0. 环境路径初始化 (解决云端 KeyError: 'config') =================
+# 自动获取当前文件所在的绝对路径，并加入系统路径，确保 internal 模块导入无误
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.append(current_dir)
 
 # 内部业务模块导入
 from config import (
@@ -24,23 +35,19 @@ st.set_page_config(page_title=PAGE_TITLE, layout=PAGE_LAYOUT)
 st.markdown(
     """
     <style>
-    /* ====================================================
-       --- 1. 深度汉化文件上传组件 (彻底消灭英文) ---
-       ==================================================== */
-    
-    /* 汉化主提示：Drag and drop file here */
+    /* 汉化主提示 */
     [data-testid="stFileUploadDropzone"] div > span {
-        font-size: 0px !important; /* 将原英文缩至 0 */
+        font-size: 0px !important;
     }
     [data-testid="stFileUploadDropzone"] div > span::after {
-        content: "请将数据表格拖拽至此处" !important; /* 注入中文 */
+        content: "请将数据表格拖拽至此处" !important;
         font-size: 16px !important;
         font-weight: bold !important;
         color: #31333F !important;
         display: block !important;
     }
 
-    /* 汉化副提示：Limit 200MB... */
+    /* 汉化副提示 */
     [data-testid="stFileUploadDropzone"] small {
         font-size: 0px !important;
     }
@@ -52,7 +59,7 @@ st.markdown(
         margin-top: 4px !important;
     }
 
-    /* 汉化按钮：Browse files */
+    /* 汉化按钮 */
     [data-testid="stFileUploadDropzone"] button {
         font-size: 0px !important;
     }
@@ -63,21 +70,15 @@ st.markdown(
         line-height: 1.5 !important;
     }
 
-    /* ====================================================
-       --- 2. 优化全局字体 ---
-       ==================================================== */
+    /* 优化全局字体：针对 Linux 服务器回退到 sans-serif */
     html, body, [class*="css"] {
-        font-family: "Microsoft YaHei", sans-serif;
+        font-family: "DejaVu Sans", "Source Sans Pro", "Microsoft YaHei", sans-serif;
     }
 
-    /* ====================================================
-       --- 3. 核心魔法：将单选按钮伪装成原生 Tab 标签页 ---
-       ==================================================== */
-    /* 隐藏单选框的丑陋圆圈 */
+    /* 核心魔法：将单选按钮伪装成原生 Tab 标签页 */
     div[role="radiogroup"] label > div:first-child {
         display: none !important;
     }
-    /* 调整布局，让选项水平排列并拉开间距，底部加灰线 */
     div[role="radiogroup"] {
         display: flex;
         flex-direction: row;
@@ -86,7 +87,6 @@ st.markdown(
         padding-bottom: 0px;
         margin-bottom: 1.5rem;
     }
-    /* 美化文字，模拟原生 Tab 未选中状态 */
     div[role="radiogroup"] label {
         cursor: pointer;
         padding: 0.5rem 0.5rem;
@@ -100,11 +100,9 @@ st.markdown(
         color: #7a7a7a;
         margin: 0;
     }
-    /* 鼠标悬停变色 */
     div[role="radiogroup"] label:hover p {
         color: #ff4b4b;
     }
-    /* 核心：选中状态加上红线和红色文字 */
     div[role="radiogroup"] label:has(input:checked) {
         border-bottom: 3px solid #ff4b4b !important; 
     }
@@ -121,14 +119,11 @@ st.markdown("---")
 
 # ================= 2. 核心核算引擎加载 =================
 calc_engine = load_model()
-logger.info("Core calculation engine successfully initialized in memory.")
 
 # ================= 3. 功能模块：带状态记忆的伪装 Tab 布局 =================
-# 初始化全局状态
 if 'active_tab' not in st.session_state:
     st.session_state.active_tab = "单点精细诊断"
 
-# 这里的 Radio 按钮在前端已经被 CSS 彻底伪装成了漂亮的 Tab
 selected_tab = st.radio(
     label="导航菜单",
     options=["单点精细诊断", "区域批量测算"],
@@ -137,12 +132,10 @@ selected_tab = st.radio(
     key="active_tab"
 )
 
-# ---------------------------------------------------------
-# --- 模块 1: 单点精细诊断 (情景模拟) -------------------------
-# ---------------------------------------------------------
+# --- 模块 1: 单点精细诊断 ---
 if selected_tab == "单点精细诊断":
     st.markdown("### 实时地块模拟")
-    st.info("说明：通过调节下方环境参数，系统将基于生态环境动力学特征矩阵，实时核算特定地貌配置下的年度固碳潜力。")
+    st.info("说明：通过调节下方环境参数，系统将实时核算特定地貌配置下的年度固碳潜力。")
 
     col_input_left, col_input_right = st.columns(2, gap="large")
 
@@ -173,6 +166,7 @@ if selected_tab == "单点精细诊断":
     }
 
     st.markdown("<br>", unsafe_allow_html=True)
+    # 按钮使用 use_container_width 兼容最新版
     run_btn = st.button("开始模拟评估与资产核算", type="primary", use_container_width=True)
 
     if run_btn:
@@ -186,7 +180,7 @@ if selected_tab == "单点精细诊断":
         with m1:
             st.metric(label="年度核算固碳潜力", value=f"{potential_val:.4f} gC/m²/yr")
         with m2:
-            st.metric(label="年度 CO2e 核证量", value=f"{assets['annual_co2e_tons']} tCO2e/yr")
+            st.metric(label="年度 CO$_2$e 核证量", value=f"{assets['annual_co2e_tons']} tCO2e/yr")
         with m3:
             st.metric(label="生态资产综合损益", value=f"¥{assets['annual_revenue']:,.2f}")
 
@@ -206,7 +200,7 @@ if selected_tab == "单点精细诊断":
 
         st.markdown("---")
         st.subheader("系统逆向反演：适生植被规划推荐")
-        st.caption("系统已锁定环境不可变参数，通过全路径矩阵扫描输出综合效益最优配置建议。")
+        st.caption("系统已锁定环境参数，通过全路径矩阵扫描输出综合效益最优配置建议。")
 
         rec_results = []
         for v_name, v_code in VEG_MAPPING.items():
@@ -231,19 +225,15 @@ if selected_tab == "单点精细诊断":
         st.dataframe(pd.DataFrame(rec_results).sort_values(by="年度核算固碳潜力 (gC/m²/yr)", ascending=False),
                      use_container_width=True, hide_index=True)
 
-# ---------------------------------------------------------
-# --- 模块 2: 区域批量测算 (政务大数据处理) -------------------
-# ---------------------------------------------------------
+# --- 模块 2: 区域批量测算 ---
 elif selected_tab == "区域批量测算":
     st.markdown("### 大规模区域测算")
-    st.info("说明：本模块支持批量上传区域林班调查数据，系统将自动执行合规性校验并输出核算报表。")
+    st.info("说明：支持批量上传区域林班调查数据，系统将自动执行合规性校验并输出核算报表。")
 
     st.markdown("#### 填表规范说明")
     st.warning("""
-    **核心注意：** 由于底层矩阵运算规范，**【植被类型】**字段请务必填写对应的**数字代码**，请勿填写中文：
-    * **输入 1** 代表 **乔木 (森林)**
-    * **输入 2** 代表 **灌木**
-    * **输入 3** 代表 **草本/农田**
+    **核心注意：** 【植被类型】字段请务必填写对应的**数字代码**：
+    * **1** 代表 **乔木 (森林)** | **2** 代表 **灌木** | **3** 代表 **草本/农田**
     """)
 
     template_df = pd.DataFrame({
@@ -263,17 +253,13 @@ elif selected_tab == "区域批量测算":
         label="下载标准核算数据模板 (.csv)",
         data=template_df.to_csv(index=False).encode('utf-8-sig'),
         file_name="固碳资产批量核算模板.csv",
-        mime="text/csv"
+        mime="text/csv",
+        use_container_width=True
     )
 
     st.markdown("---")
-
     st.markdown("##### 请选择或拖拽区域调查数据表至下方区域")
-    uploaded_file = st.file_uploader(
-        label="数据上传区",
-        type=["csv", "xlsx"],
-        label_visibility="collapsed"
-    )
+    uploaded_file = st.file_uploader(label="数据上传区", type=["csv", "xlsx"], label_visibility="collapsed")
 
     if uploaded_file is not None:
         try:
@@ -287,104 +273,68 @@ elif selected_tab == "区域批量测算":
                 df_input = pd.read_excel(uploaded_file)
 
             with st.spinner("正在执行系统合规性校验..."):
-                cleaned_columns = []
-                for col in df_input.columns:
-                    c = str(col).strip()
-                    c = c.replace("W/m2", "W/m²").replace("W/m^2", "W/m²")
-                    c = c.replace("（", "(").replace("）", ")")
-                    cleaned_columns.append(c)
-
+                cleaned_columns = [str(col).strip().replace("W/m2", "W/m²").replace("W/m^2", "W/m²").replace("（", "(").replace("）", ")") for col in df_input.columns]
                 df_input.columns = cleaned_columns
 
                 df_clean = df_input.dropna(how='all')
-                required_cols = [
-                    '年均温度 (℃)', '年均相对湿度 (%)', '年降水总量 (mm)', '年均太阳辐射 (W/m²)',
-                    '坡度 (°)', '土壤厚度 (cm)', '裸岩率 (%)', '面积 (公顷)', '植被类型'
-                ]
+                required_cols = ['年均温度 (℃)', '年均相对湿度 (%)', '年降水总量 (mm)', '年均太阳辐射 (W/m²)', '坡度 (°)', '土壤厚度 (cm)', '裸岩率 (%)', '面积 (公顷)', '植被类型']
                 missing_cols = [col for col in required_cols if col not in df_clean.columns]
 
                 if missing_cols:
-                    st.error(f"校验失败：上传数据缺失核心业务字段：{missing_cols}")
-                    with st.expander("点击查看系统识别到的表头列表（供排查对照）"):
-                        st.write(list(df_clean.columns))
+                    st.error(f"校验失败：缺失核心业务字段：{missing_cols}")
                     st.stop()
 
-                numeric_fields = [c for c in required_cols if c != '植被类型']
-                for col in numeric_fields:
+                for col in [c for c in required_cols if c != '植被类型']:
                     df_clean[col] = pd.to_numeric(df_clean[col], errors='coerce')
 
                 df_clean = df_clean.dropna(subset=required_cols)
-                cleansed_count = len(df_input) - len(df_clean)
-                if cleansed_count > 0:
-                    st.warning(f"审计提示：已自动剔除 {cleansed_count} 条格式异常记录。")
-                else:
-                    st.success("校验通过：数据格式完全符合业务逻辑。")
+                st.success("数据校验通过。")
 
-            st.write("**核算前数据预览 (前5行)：**")
-            st.dataframe(df_clean.head())
+            st.write("**数据预览 (前5行)：**")
+            st.dataframe(df_clean.head(), use_container_width=True)
 
             col_btn1, col_btn2 = st.columns(2)
             mapping_dict = {
-                '年均温度 (℃)': 'T', '年均相对湿度 (%)': 'RH',
-                '年降水总量 (mm)': 'R', '年均太阳辐射 (W/m²)': 'Rg',
-                '坡度 (°)': 'Slope', '土壤厚度 (cm)': 'Soil_Thickness',
+                '年均温度 (℃)': 'T', '年均相对湿度 (%)': 'RH', '年降水总量 (mm)': 'R',
+                '年均太阳辐射 (W/m²)': 'Rg', '坡度 (°)': 'Slope', '土壤厚度 (cm)': 'Soil_Thickness',
                 '裸岩率 (%)': 'Rock_Outcrop', '植被类型': 'Veg_Type'
             }
 
             if col_btn1.button("执行现状资产核算", type="primary", use_container_width=True):
-                with st.spinner("现状核算中..."):
+                with st.spinner("核算中..."):
                     X_matrix = df_clean[list(mapping_dict.keys())].rename(columns=mapping_dict)
                     results = calc_engine.predict(X_matrix) * 365
                     df_clean['年度核算固碳潜力'] = results.round(4)
                     df_clean['年度综合损益 (元)'] = df_clean.apply(
-                        lambda r:
-                        calculate_carbon_assets(r['年度核算固碳潜力'], r['面积 (公顷)'], DEFAULT_CARBON_PRICE)[
-                            'annual_revenue'], axis=1
+                        lambda r: calculate_carbon_assets(r['年度核算固碳潜力'], r['面积 (公顷)'], DEFAULT_CARBON_PRICE)['annual_revenue'], axis=1
                     )
-                    st.dataframe(df_clean)
-                    st.download_button("导出核算报表", df_clean.to_csv(index=False).encode('utf-8-sig'),
-                                       "现状资产核算报表.csv", "text/csv")
+                    st.dataframe(df_clean, use_container_width=True)
+                    st.download_button("导出核算报表", df_clean.to_csv(index=False).encode('utf-8-sig'), "现状资产核算报表.csv", "text/csv")
 
             if col_btn2.button("执行最优规划推演", type="secondary", use_container_width=True):
-                with st.spinner("全场景生态推演中..."):
-                    base_features = df_clean[list(mapping_dict.keys())].rename(columns=mapping_dict).drop(
-                        columns=['Veg_Type'])
-                    X_tree = base_features.copy();
-                    X_tree['Veg_Type'] = 1
-                    X_shrub = base_features.copy();
-                    X_shrub['Veg_Type'] = 2
-                    X_grass = base_features.copy();
-                    X_grass['Veg_Type'] = 3
+                with st.spinner("推演中..."):
+                    base_features = df_clean[list(mapping_dict.keys())].rename(columns=mapping_dict).drop(columns=['Veg_Type'])
+                    X_tree = base_features.copy(); X_tree['Veg_Type'] = 1
+                    X_shrub = base_features.copy(); X_shrub['Veg_Type'] = 2
+                    X_grass = base_features.copy(); X_grass['Veg_Type'] = 3
 
-                    p_tree = calc_engine.predict(X_tree) * 365
-                    p_shrub = calc_engine.predict(X_shrub) * 365
-                    p_grass = calc_engine.predict(X_grass) * 365
-
-                    results_matrix = pd.DataFrame({'树': p_tree, '灌': p_shrub, '草': p_grass})
+                    results_matrix = pd.DataFrame({
+                        '树': calc_engine.predict(X_tree) * 365,
+                        '灌': calc_engine.predict(X_shrub) * 365,
+                        '草': calc_engine.predict(X_grass) * 365
+                    })
                     results_matrix.loc[base_features['Soil_Thickness'] < 15, '树'] = -99999.0
 
                     best_option_idx = results_matrix.idxmax(axis=1)
-                    best_potential = results_matrix.max(axis=1)
                     desc_map = {'树': '乔木 (森林)', '灌': '灌木', '草': '草本/农田'}
-
                     df_clean['系统推荐方案'] = best_option_idx.map(desc_map)
-                    df_clean['规划后固碳潜力'] = best_potential.round(4)
+                    df_clean['规划后固碳潜力'] = results_matrix.max(axis=1).round(4)
                     df_clean['规划后预期损益 (元)'] = df_clean.apply(
-                        lambda r: calculate_carbon_assets(r['规划后固碳潜力'], r['面积 (公顷)'], DEFAULT_CARBON_PRICE)[
-                            'annual_revenue'], axis=1
+                        lambda r: calculate_carbon_assets(r['规划后固碳潜力'], r['面积 (公顷)'], DEFAULT_CARBON_PRICE)['annual_revenue'], axis=1
                     )
-                    st.success("推演完成：已识别最优配置方案。")
-                    st.dataframe(df_clean)
-                    st.download_button("导出规划建议书", df_clean.to_csv(index=False).encode('utf-8-sig'),
-                                       "最优生态规划建议书.csv", "text/csv")
+                    st.success("最优规划推演完成。")
+                    st.dataframe(df_clean, use_container_width=True)
+                    st.download_button("导出规划建议书", df_clean.to_csv(index=False).encode('utf-8-sig'), "最优生态规划建议书.csv", "text/csv")
 
         except Exception as e:
-            logger.error(f"System Error: {e}")
-            error_str = str(e)
-            if "codec can't decode" in error_str:
-                st.error(
-                    "核算异常：文件编码格式不匹配。请确保 CSV 文件使用 UTF-8 或 GBK 编码（建议将 Excel 保存为 .xlsx 格式再上传）。")
-            elif "column" in error_str.lower():
-                st.error("核算异常：上传的表格缺少必要的表头或列名不正确，请对比模板文件。")
-            else:
-                st.error(f"系统核算异常：{error_str}")
+            st.error(f"核算异常：{str(e)}")

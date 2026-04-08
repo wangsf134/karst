@@ -1,16 +1,16 @@
 # Carbon_Flux_System 依赖清单
-# 核心框架
-streamlit==1.32.0
-pandas==2.2.0
+# 核心框架 (已解除版本封印，解决云端编译报错)
+streamlit
+pandas
 
-# 机器学习引擎 (严格锁定模型训练版本)
+# 机器学习引擎 (严格锁定模型训练版本，防止 pkl 加载失败)
 scikit-learn==1.6.1
 joblib==1.3.2
 
-# 数据可视化与 XAI 可解释性
-shap==0.44.1
-matplotlib==3.8.3
-altair==5.2.0
+# 数据可视化与 XAI 可解释性 (已解除版本封印)
+shap
+matplotlib
+altair
 
 # 办公自动化支持
 openpyxl
