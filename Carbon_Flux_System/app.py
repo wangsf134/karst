@@ -20,27 +20,96 @@ logger = get_logger("APP_MAIN")
 # ================= 1. 全局样式与配置 =================
 st.set_page_config(page_title=PAGE_TITLE, layout=PAGE_LAYOUT)
 
-# CSS 注入：强制汉化文件上传组件内部英文、优化界面字体
+# CSS 注入：包含组件汉化、全局字体优化，以及【核心魔法：Tab 视觉伪装】
 st.markdown(
     """
     <style>
-    /* 强制汉化 File Uploader 内部提示语 */
-    .stFileUploader section [data-testid="stFileUploadDropzone"] div div::before {
-        content: "请将数据表格拖拽至此处";
-        font-weight: bold;
+    /* ====================================================
+       --- 1. 深度汉化文件上传组件 (彻底消灭英文) ---
+       ==================================================== */
+    
+    /* 汉化主提示：Drag and drop file here */
+    [data-testid="stFileUploadDropzone"] div > span {
+        font-size: 0px !important; /* 将原英文缩至 0 */
     }
-    .stFileUploader section [data-testid="stFileUploadDropzone"] div div span {
-        display: none;
+    [data-testid="stFileUploadDropzone"] div > span::after {
+        content: "请将数据表格拖拽至此处" !important; /* 注入中文 */
+        font-size: 16px !important;
+        font-weight: bold !important;
+        color: #31333F !important;
+        display: block !important;
     }
-    .stFileUploader section [data-testid="stFileUploadDropzone"] div small::before {
-        content: "支持格式：CSV, XLSX • 单个文件限制 200MB";
+
+    /* 汉化副提示：Limit 200MB... */
+    [data-testid="stFileUploadDropzone"] small {
+        font-size: 0px !important;
     }
-    .stFileUploader section [data-testid="stFileUploadDropzone"] div small {
-        font-size: 0px;
+    [data-testid="stFileUploadDropzone"] small::after {
+        content: "单文件大小限制 200MB • 支持 CSV, XLSX" !important;
+        font-size: 13px !important;
+        color: #888888 !important;
+        display: block !important;
+        margin-top: 4px !important;
     }
-    /* 优化全局字体 */
+
+    /* 汉化按钮：Browse files */
+    [data-testid="stFileUploadDropzone"] button {
+        font-size: 0px !important;
+    }
+    [data-testid="stFileUploadDropzone"] button::after {
+        content: "浏览本地文件" !important;
+        font-size: 14px !important;
+        font-weight: 500 !important;
+        line-height: 1.5 !important;
+    }
+
+    /* ====================================================
+       --- 2. 优化全局字体 ---
+       ==================================================== */
     html, body, [class*="css"] {
         font-family: "Microsoft YaHei", sans-serif;
+    }
+
+    /* ====================================================
+       --- 3. 核心魔法：将单选按钮伪装成原生 Tab 标签页 ---
+       ==================================================== */
+    /* 隐藏单选框的丑陋圆圈 */
+    div[role="radiogroup"] label > div:first-child {
+        display: none !important;
+    }
+    /* 调整布局，让选项水平排列并拉开间距，底部加灰线 */
+    div[role="radiogroup"] {
+        display: flex;
+        flex-direction: row;
+        gap: 2rem !important;
+        border-bottom: 1px solid #f0f2f6; 
+        padding-bottom: 0px;
+        margin-bottom: 1.5rem;
+    }
+    /* 美化文字，模拟原生 Tab 未选中状态 */
+    div[role="radiogroup"] label {
+        cursor: pointer;
+        padding: 0.5rem 0.5rem;
+        margin: 0;
+        border-bottom: 3px solid transparent; 
+        transition: all 0.2s ease;
+    }
+    div[role="radiogroup"] label p {
+        font-size: 1.15rem !important;
+        font-weight: 600 !important;
+        color: #7a7a7a;
+        margin: 0;
+    }
+    /* 鼠标悬停变色 */
+    div[role="radiogroup"] label:hover p {
+        color: #ff4b4b;
+    }
+    /* 核心：选中状态加上红线和红色文字 */
+    div[role="radiogroup"] label:has(input:checked) {
+        border-bottom: 3px solid #ff4b4b !important; 
+    }
+    div[role="radiogroup"] label:has(input:checked) p {
+        color: #ff4b4b !important; 
     }
     </style>
     """,
@@ -54,13 +123,24 @@ st.markdown("---")
 calc_engine = load_model()
 logger.info("Core calculation engine successfully initialized in memory.")
 
-# ================= 3. 功能模块：标签页布局 =================
-tab1, tab2 = st.tabs(["单点精细诊断", "区域批量测算"])
+# ================= 3. 功能模块：带状态记忆的伪装 Tab 布局 =================
+# 初始化全局状态
+if 'active_tab' not in st.session_state:
+    st.session_state.active_tab = "单点精细诊断"
+
+# 这里的 Radio 按钮在前端已经被 CSS 彻底伪装成了漂亮的 Tab
+selected_tab = st.radio(
+    label="导航菜单",
+    options=["单点精细诊断", "区域批量测算"],
+    horizontal=True,
+    label_visibility="collapsed",
+    key="active_tab"
+)
 
 # ---------------------------------------------------------
 # --- 模块 1: 单点精细诊断 (情景模拟) -------------------------
 # ---------------------------------------------------------
-with tab1:
+if selected_tab == "单点精细诊断":
     st.markdown("### 实时地块模拟")
     st.info("说明：通过调节下方环境参数，系统将基于生态环境动力学特征矩阵，实时核算特定地貌配置下的年度固碳潜力。")
 
@@ -99,7 +179,6 @@ with tab1:
         st.markdown("---")
         st.subheader("报告诊断输出")
 
-        # predict_flux 内部已包含日-年转化逻辑
         potential_val = predict_flux(calc_engine, features)
         assets = calculate_carbon_assets(potential_val, area_ha, carbon_price)
 
@@ -155,16 +234,29 @@ with tab1:
 # ---------------------------------------------------------
 # --- 模块 2: 区域批量测算 (政务大数据处理) -------------------
 # ---------------------------------------------------------
-with tab2:
+elif selected_tab == "区域批量测算":
     st.markdown("### 大规模区域测算")
     st.info("说明：本模块支持批量上传区域林班调查数据，系统将自动执行合规性校验并输出核算报表。")
 
+    st.markdown("#### 填表规范说明")
+    st.warning("""
+    **核心注意：** 由于底层矩阵运算规范，**【植被类型】**字段请务必填写对应的**数字代码**，请勿填写中文：
+    * **输入 1** 代表 **乔木 (森林)**
+    * **输入 2** 代表 **灌木**
+    * **输入 3** 代表 **草本/农田**
+    """)
+
     template_df = pd.DataFrame({
-        '地块编号': ['Plot_001', 'Plot_002'], '年均温度 (℃)': [15.0, 18.5],
-        '年均相对湿度 (%)': [70.0, 65.0], '年降水总量 (mm)': [1000.0, 850.0],
-        '年均太阳辐射 (W/m²)': [150.0, 200.0], '坡度 (°)': [15.0, 25.0],
-        '土壤厚度 (cm)': [10.0, 30.0], '裸岩率 (%)': [60.0, 40.0],
-        '面积 (公顷)': [5.5, 12.0], '植被类型': [1, 2]
+        '地块编号': ['Plot_001', 'Plot_002', 'Plot_003'],
+        '年均温度 (℃)': [15.0, 18.5, 16.0],
+        '年均相对湿度 (%)': [70.0, 65.0, 75.0],
+        '年降水总量 (mm)': [1000.0, 850.0, 1200.0],
+        '年均太阳辐射 (W/m²)': [150.0, 200.0, 180.0],
+        '坡度 (°)': [15.0, 25.0, 10.0],
+        '土壤厚度 (cm)': [10.0, 30.0, 8.0],
+        '裸岩率 (%)': [60.0, 40.0, 80.0],
+        '面积 (公顷)': [5.5, 12.0, 3.2],
+        '植被类型': [1, 2, 3]
     })
 
     st.download_button(
@@ -176,28 +268,45 @@ with tab2:
 
     st.markdown("---")
 
-    # 优化后的文件上传区域
     st.markdown("##### 请选择或拖拽区域调查数据表至下方区域")
     uploaded_file = st.file_uploader(
         label="数据上传区",
         type=["csv", "xlsx"],
-        label_visibility="collapsed"  # 隐藏原生英文标题
+        label_visibility="collapsed"
     )
 
     if uploaded_file is not None:
         try:
-            df_input = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(
-                uploaded_file)
+            if uploaded_file.name.endswith('.csv'):
+                try:
+                    df_input = pd.read_csv(uploaded_file, encoding='utf-8')
+                except UnicodeDecodeError:
+                    uploaded_file.seek(0)
+                    df_input = pd.read_csv(uploaded_file, encoding='gbk')
+            else:
+                df_input = pd.read_excel(uploaded_file)
 
             with st.spinner("正在执行系统合规性校验..."):
+                cleaned_columns = []
+                for col in df_input.columns:
+                    c = str(col).strip()
+                    c = c.replace("W/m2", "W/m²").replace("W/m^2", "W/m²")
+                    c = c.replace("（", "(").replace("）", ")")
+                    cleaned_columns.append(c)
+
+                df_input.columns = cleaned_columns
+
                 df_clean = df_input.dropna(how='all')
                 required_cols = [
                     '年均温度 (℃)', '年均相对湿度 (%)', '年降水总量 (mm)', '年均太阳辐射 (W/m²)',
                     '坡度 (°)', '土壤厚度 (cm)', '裸岩率 (%)', '面积 (公顷)', '植被类型'
                 ]
                 missing_cols = [col for col in required_cols if col not in df_clean.columns]
+
                 if missing_cols:
                     st.error(f"校验失败：上传数据缺失核心业务字段：{missing_cols}")
+                    with st.expander("点击查看系统识别到的表头列表（供排查对照）"):
+                        st.write(list(df_clean.columns))
                     st.stop()
 
                 numeric_fields = [c for c in required_cols if c != '植被类型']
@@ -207,7 +316,7 @@ with tab2:
                 df_clean = df_clean.dropna(subset=required_cols)
                 cleansed_count = len(df_input) - len(df_clean)
                 if cleansed_count > 0:
-                    st.warning(f"审计提示：已剔除 {cleansed_count} 条格式异常记录。")
+                    st.warning(f"审计提示：已自动剔除 {cleansed_count} 条格式异常记录。")
                 else:
                     st.success("校验通过：数据格式完全符合业务逻辑。")
 
@@ -225,7 +334,7 @@ with tab2:
             if col_btn1.button("执行现状资产核算", type="primary", use_container_width=True):
                 with st.spinner("现状核算中..."):
                     X_matrix = df_clean[list(mapping_dict.keys())].rename(columns=mapping_dict)
-                    results = calc_engine.predict(X_matrix) * 365  # 尺度上译
+                    results = calc_engine.predict(X_matrix) * 365
                     df_clean['年度核算固碳潜力'] = results.round(4)
                     df_clean['年度综合损益 (元)'] = df_clean.apply(
                         lambda r:
@@ -271,4 +380,11 @@ with tab2:
 
         except Exception as e:
             logger.error(f"System Error: {e}")
-            st.error(f"系统核算异常：{e}")
+            error_str = str(e)
+            if "codec can't decode" in error_str:
+                st.error(
+                    "核算异常：文件编码格式不匹配。请确保 CSV 文件使用 UTF-8 或 GBK 编码（建议将 Excel 保存为 .xlsx 格式再上传）。")
+            elif "column" in error_str.lower():
+                st.error("核算异常：上传的表格缺少必要的表头或列名不正确，请对比模板文件。")
+            else:
+                st.error(f"系统核算异常：{error_str}")
