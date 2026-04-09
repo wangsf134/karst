@@ -80,12 +80,8 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# ================= 动态渲染 Header：进一步放大 Logo 并增加底部间距 =================
+# ================= 动态渲染 Header：放大的 Logo 与标题 =================
 if bin_str:
-    # 【修改点】：
-    # 1. font-size 保持 2.8rem 不变。
-    # 2. max-height 增加到 150px，max-width 增加到 300px。
-    # 3. margin-bottom: 25px 确保下方的分割线横线不会穿过图片。
     st.markdown(
         f"""
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
@@ -100,13 +96,12 @@ else:
         '<h1 style="margin: 0; padding: 0; font-size: 2.8rem; font-weight: 600; line-height: 1.2; margin-bottom: 25px;">碳绘喀斯特：县域固碳评估与情景模拟沙盘</h1>',
         unsafe_allow_html=True)
 
-# 横线始终在容器外部的下方
 st.markdown("---")
 
 # ================= 2. 核心核算引擎加载 =================
 calc_engine = load_model()
 
-# ================= 3. 功能模块：Tab 切换逻辑 =================
+# ================= 3. 功能模块布局 =================
 if 'active_tab' not in st.session_state:
     st.session_state.active_tab = "单点精细诊断"
 
@@ -135,7 +130,8 @@ if selected_tab == "单点精细诊断":
     with col_input_right:
         st.subheader("地表特征与人为干预")
         Slope = st.slider("坡度 (°)", 0.0, 60.0, 15.0)
-        Soil_Thickness = st.slider("土壤厚度 (cm)", 0.0, 100.0, 10.0)
+        # 【修改点】：最小土层锁定为 5.0cm，默认值设为 15.0cm 以规避模型边界 Bug
+        Soil_Thickness = st.slider("土壤厚度 (cm)", 10.0, 100.0, 15.0)
         Rock_Outcrop = st.slider("裸岩率 (%)", 0.0, 100.0, 60.0)
         veg_choice = st.selectbox("目标植被类型", list(VEG_MAPPING.keys()))
         Veg_Type = VEG_MAPPING[veg_choice]
