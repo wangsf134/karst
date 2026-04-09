@@ -1,19 +1,30 @@
-import sys
-import os
-# 强制把当前文件夹加入系统搜索路径
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import streamlit as st
 import pandas as pd
 import numpy as np
 import sys
 import os
+import base64
 from typing import Dict, Any
 
-# ================= 0. 环境路径初始化 (解决云端 KeyError: 'config') =================
-# 自动获取当前文件所在的绝对路径，并加入系统路径，确保 internal 模块导入无误
+# ================= 0. 环境路径初始化 =================
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.append(current_dir)
+
+
+# 自动处理 Logo 文件：将本地图片转为 Base64 字符串以实现 HTML 注入
+def get_base64_of_bin_file(bin_file):
+    if os.path.exists(bin_file):
+        with open(bin_file, 'rb') as f:
+            data = f.read()
+        return base64.b64encode(data).decode()
+    return None
+
+
+# 定位 Logo 文件
+logo_filename = "logo.png"
+logo_path = os.path.join(current_dir, logo_filename)
+bin_str = get_base64_of_bin_file(logo_path)
 
 # 内部业务模块导入
 from config import (
@@ -31,96 +42,71 @@ logger = get_logger("APP_MAIN")
 # ================= 1. 全局样式与配置 =================
 st.set_page_config(page_title=PAGE_TITLE, layout=PAGE_LAYOUT)
 
-# CSS 注入：包含组件汉化、全局字体优化，以及【核心魔法：Tab 视觉伪装】
+# CSS 注入
 st.markdown(
     """
     <style>
-    /* 汉化主提示 */
-    [data-testid="stFileUploadDropzone"] div > span {
-        font-size: 0px !important;
-    }
+    /* 界面汉化与字体优化 */
+    [data-testid="stFileUploadDropzone"] div > span { font-size: 0px !important; }
     [data-testid="stFileUploadDropzone"] div > span::after {
-        content: "请将数据表格拖拽至此处" !important;
-        font-size: 16px !important;
-        font-weight: bold !important;
-        color: #31333F !important;
-        display: block !important;
+        content: "请将区域调查数据表格拖拽至此处" !important;
+        font-size: 16px !important; font-weight: bold; color: #31333F;
     }
-
-    /* 汉化副提示 */
-    [data-testid="stFileUploadDropzone"] small {
-        font-size: 0px !important;
-    }
+    [data-testid="stFileUploadDropzone"] small { font-size: 0px !important; }
     [data-testid="stFileUploadDropzone"] small::after {
-        content: "单文件大小限制 200MB • 支持 CSV, XLSX" !important;
-        font-size: 13px !important;
-        color: #888888 !important;
-        display: block !important;
-        margin-top: 4px !important;
+        content: "单文件限制 200MB • 支持 CSV, XLSX" !important;
+        font-size: 13px !important; color: #888888; margin-top: 5px !important; display: block;
     }
+    [data-testid="stFileUploadDropzone"] button::after { content: "浏览文件" !important; visibility: visible; }
+    [data-testid="stFileUploadDropzone"] button { font-size: 0px !important; }
 
-    /* 汉化按钮 */
-    [data-testid="stFileUploadDropzone"] button {
-        font-size: 0px !important;
-    }
-    [data-testid="stFileUploadDropzone"] button::after {
-        content: "浏览本地文件" !important;
-        font-size: 14px !important;
-        font-weight: 500 !important;
-        line-height: 1.5 !important;
-    }
+    html, body, [class*="css"] { font-family: "DejaVu Sans", "Source Sans Pro", "Microsoft YaHei", sans-serif; }
 
-    /* 优化全局字体：针对 Linux 服务器回退到 sans-serif */
-    html, body, [class*="css"] {
-        font-family: "DejaVu Sans", "Source Sans Pro", "Microsoft YaHei", sans-serif;
-    }
-
-    /* 核心魔法：将单选按钮伪装成原生 Tab 标签页 */
-    div[role="radiogroup"] label > div:first-child {
-        display: none !important;
-    }
+    /* Tab 视觉伪装 */
+    div[role="radiogroup"] label > div:first-child { display: none !important; }
     div[role="radiogroup"] {
-        display: flex;
-        flex-direction: row;
-        gap: 2rem !important;
-        border-bottom: 1px solid #f0f2f6; 
-        padding-bottom: 0px;
-        margin-bottom: 1.5rem;
+        display: flex; flex-direction: row; gap: 2rem !important;
+        border-bottom: 1px solid #f0f2f6; padding-bottom: 0px; margin-bottom: 1.5rem;
     }
-    div[role="radiogroup"] label {
-        cursor: pointer;
-        padding: 0.5rem 0.5rem;
-        margin: 0;
-        border-bottom: 3px solid transparent; 
-        transition: all 0.2s ease;
-    }
-    div[role="radiogroup"] label p {
-        font-size: 1.15rem !important;
-        font-weight: 600 !important;
-        color: #7a7a7a;
-        margin: 0;
-    }
-    div[role="radiogroup"] label:hover p {
-        color: #ff4b4b;
-    }
-    div[role="radiogroup"] label:has(input:checked) {
-        border-bottom: 3px solid #ff4b4b !important; 
-    }
-    div[role="radiogroup"] label:has(input:checked) p {
-        color: #ff4b4b !important; 
-    }
+    div[role="radiogroup"] label { cursor: pointer; padding: 0.5rem 0.5rem; border-bottom: 3px solid transparent; transition: all 0.2s ease; }
+    div[role="radiogroup"] label p { font-size: 1.1rem !important; font-weight: 600 !important; color: #7a7a7a; }
+    div[role="radiogroup"] label:hover p { color: #ff4b4b; }
+    div[role="radiogroup"] label:has(input:checked) { border-bottom: 3px solid #ff4b4b !important; }
+    div[role="radiogroup"] label:has(input:checked) p { color: #ff4b4b !important; }
+
+    .stApp { margin-top: 10px; }
     </style>
     """,
     unsafe_allow_html=True
 )
 
-st.title("碳绘喀斯特：县域固碳评估与情景模拟沙盘")
+# ================= 动态渲染 Header：进一步放大 Logo 并增加底部间距 =================
+if bin_str:
+    # 【修改点】：
+    # 1. font-size 保持 2.8rem 不变。
+    # 2. max-height 增加到 150px，max-width 增加到 300px。
+    # 3. margin-bottom: 25px 确保下方的分割线横线不会穿过图片。
+    st.markdown(
+        f"""
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+            <h1 style="margin: 0; padding: 0; font-size: 2.8rem; font-weight: 600; line-height: 1.2;">碳绘喀斯特：县域固碳评估与情景模拟沙盘</h1>
+            <img src="data:image/png;base64,{bin_str}" style="max-height: 150px; width: auto; max-width: 300px; object-fit: contain; margin-left: 20px;">
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+else:
+    st.markdown(
+        '<h1 style="margin: 0; padding: 0; font-size: 2.8rem; font-weight: 600; line-height: 1.2; margin-bottom: 25px;">碳绘喀斯特：县域固碳评估与情景模拟沙盘</h1>',
+        unsafe_allow_html=True)
+
+# 横线始终在容器外部的下方
 st.markdown("---")
 
 # ================= 2. 核心核算引擎加载 =================
 calc_engine = load_model()
 
-# ================= 3. 功能模块：带状态记忆的伪装 Tab 布局 =================
+# ================= 3. 功能模块：Tab 切换逻辑 =================
 if 'active_tab' not in st.session_state:
     st.session_state.active_tab = "单点精细诊断"
 
@@ -166,7 +152,6 @@ if selected_tab == "单点精细诊断":
     }
 
     st.markdown("<br>", unsafe_allow_html=True)
-    # 按钮使用 use_container_width 兼容最新版
     run_btn = st.button("开始模拟评估与资产核算", type="primary", use_container_width=True)
 
     if run_btn:
@@ -208,13 +193,11 @@ if selected_tab == "单点精细诊断":
             test_features['Veg_Type'] = v_code
             v_potential = predict_flux(calc_engine, test_features)
             v_assets = calculate_carbon_assets(v_potential, area_ha, carbon_price)
-
             risk_level = "适宜"
             if Soil_Thickness < 15 and v_code == 1:
                 risk_level = "生存受限(土层不足)"
             elif v_potential < 0:
                 risk_level = "排碳风险"
-
             rec_results.append({
                 "规划方案": v_name,
                 "年度核算固碳潜力 (gC/m²/yr)": round(v_potential, 4),
@@ -273,11 +256,14 @@ elif selected_tab == "区域批量测算":
                 df_input = pd.read_excel(uploaded_file)
 
             with st.spinner("正在执行系统合规性校验..."):
-                cleaned_columns = [str(col).strip().replace("W/m2", "W/m²").replace("W/m^2", "W/m²").replace("（", "(").replace("）", ")") for col in df_input.columns]
+                cleaned_columns = [
+                    str(col).strip().replace("W/m2", "W/m²").replace("W/m^2", "W/m²").replace("（", "(").replace("）",
+                                                                                                                ")") for
+                    col in df_input.columns]
                 df_input.columns = cleaned_columns
-
                 df_clean = df_input.dropna(how='all')
-                required_cols = ['年均温度 (℃)', '年均相对湿度 (%)', '年降水总量 (mm)', '年均太阳辐射 (W/m²)', '坡度 (°)', '土壤厚度 (cm)', '裸岩率 (%)', '面积 (公顷)', '植被类型']
+                required_cols = ['年均温度 (℃)', '年均相对湿度 (%)', '年降水总量 (mm)', '年均太阳辐射 (W/m²)',
+                                 '坡度 (°)', '土壤厚度 (cm)', '裸岩率 (%)', '面积 (公顷)', '植被类型']
                 missing_cols = [col for col in required_cols if col not in df_clean.columns]
 
                 if missing_cols:
@@ -286,7 +272,6 @@ elif selected_tab == "区域批量测算":
 
                 for col in [c for c in required_cols if c != '植被类型']:
                     df_clean[col] = pd.to_numeric(df_clean[col], errors='coerce')
-
                 df_clean = df_clean.dropna(subset=required_cols)
                 st.success("数据校验通过。")
 
@@ -306,35 +291,35 @@ elif selected_tab == "区域批量测算":
                     results = calc_engine.predict(X_matrix) * 365
                     df_clean['年度核算固碳潜力'] = results.round(4)
                     df_clean['年度综合损益 (元)'] = df_clean.apply(
-                        lambda r: calculate_carbon_assets(r['年度核算固碳潜力'], r['面积 (公顷)'], DEFAULT_CARBON_PRICE)['annual_revenue'], axis=1
+                        lambda r:
+                        calculate_carbon_assets(r['年度核算固碳潜力'], r['面积 (公顷)'], DEFAULT_CARBON_PRICE)[
+                            'annual_revenue'], axis=1
                     )
                     st.dataframe(df_clean, use_container_width=True)
-                    st.download_button("导出核算报表", df_clean.to_csv(index=False).encode('utf-8-sig'), "现状资产核算报表.csv", "text/csv")
+                    st.download_button("导出核算报表", df_clean.to_csv(index=False).encode('utf-8-sig'),
+                                       "现状资产核算报表.csv", "text/csv")
 
             if col_btn2.button("执行最优规划推演", type="secondary", use_container_width=True):
                 with st.spinner("推演中..."):
-                    base_features = df_clean[list(mapping_dict.keys())].rename(columns=mapping_dict).drop(columns=['Veg_Type'])
-                    X_tree = base_features.copy(); X_tree['Veg_Type'] = 1
-                    X_shrub = base_features.copy(); X_shrub['Veg_Type'] = 2
-                    X_grass = base_features.copy(); X_grass['Veg_Type'] = 3
-
+                    base_features = df_clean[list(mapping_dict.keys())].rename(columns=mapping_dict).drop(
+                        columns=['Veg_Type'])
                     results_matrix = pd.DataFrame({
-                        '树': calc_engine.predict(X_tree) * 365,
-                        '灌': calc_engine.predict(X_shrub) * 365,
-                        '草': calc_engine.predict(X_grass) * 365
+                        '树': calc_engine.predict(base_features.assign(Veg_Type=1)) * 365,
+                        '灌': calc_engine.predict(base_features.assign(Veg_Type=2)) * 365,
+                        '草': calc_engine.predict(base_features.assign(Veg_Type=3)) * 365
                     })
                     results_matrix.loc[base_features['Soil_Thickness'] < 15, '树'] = -99999.0
-
                     best_option_idx = results_matrix.idxmax(axis=1)
                     desc_map = {'树': '乔木 (森林)', '灌': '灌木', '草': '草本/农田'}
                     df_clean['系统推荐方案'] = best_option_idx.map(desc_map)
                     df_clean['规划后固碳潜力'] = results_matrix.max(axis=1).round(4)
                     df_clean['规划后预期损益 (元)'] = df_clean.apply(
-                        lambda r: calculate_carbon_assets(r['规划后固碳潜力'], r['面积 (公顷)'], DEFAULT_CARBON_PRICE)['annual_revenue'], axis=1
+                        lambda r: calculate_carbon_assets(r['规划后固碳潜力'], r['面积 (公顷)'], DEFAULT_CARBON_PRICE)[
+                            'annual_revenue'], axis=1
                     )
                     st.success("最优规划推演完成。")
                     st.dataframe(df_clean, use_container_width=True)
-                    st.download_button("导出规划建议书", df_clean.to_csv(index=False).encode('utf-8-sig'), "最优生态规划建议书.csv", "text/csv")
-
+                    st.download_button("导出规划建议书", df_clean.to_csv(index=False).encode('utf-8-sig'),
+                                       "最优生态规划建议书.csv", "text/csv")
         except Exception as e:
             st.error(f"核算异常：{str(e)}")

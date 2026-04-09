@@ -9,7 +9,7 @@ import os
 
 
 # ==========================================
-# 【核心修复】自动识别后缀并加载字体
+# 【核心修复】自动识别后缀并绝对路径加载字体
 # ==========================================
 def init_chinese_font():
     """
@@ -109,7 +109,7 @@ def render_shap_waterfall(calc_engine, base_features):
         explainer = shap.TreeExplainer(calc_engine)
         shap_values = explainer(input_df)
 
-        # 映射特征名称
+        # 映射特征名称，彻底移除了易报错的特殊符号
         feature_display_names = [
             "年均温度 (C)", "相对湿度 (%)", "年降水量 (mm)", "太阳辐射 (W/m2)",
             "坡度 (Deg)", "土壤厚度 (cm)", "裸岩率 (%)", "植被类型"
@@ -124,7 +124,7 @@ def render_shap_waterfall(calc_engine, base_features):
         )
 
         plt.figure(figsize=(10, 5))
-        # 显式设置背景色，防止云端黑屏
+        # 显式设置背景色为白色，防止云端出现透明底导致黑屏
         plt.gcf().set_facecolor('white')
 
         # 调用 SHAP 绘图
@@ -135,7 +135,7 @@ def render_shap_waterfall(calc_engine, base_features):
         plt.tight_layout()
         st.pyplot(fig)
 
-        # 清理内存，防止云端 OOM (内存溢出)
+        # 清理内存，防止云端 OOM (内存溢出) 和下次绘图异常
         plt.clf()
         plt.close(fig)
 
