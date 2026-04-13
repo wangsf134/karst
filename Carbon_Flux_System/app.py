@@ -291,29 +291,30 @@ elif selected_tab == "智能生态助理":
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # 调用模型并流式显示
-        with st.chat_message("assistant"):
-            try:
-                stream = client.chat.completions.create(
-                    model="qwen3.5-flash",
-                    messages=st.session_state["messages"],
-                    temperature=0.7,
-                    stream=True
-                )
-                full_response = st.write_stream(stream)
+            # 调用模型并流式显示
+            with st.chat_message("assistant"):
+                try:
+                    # 极简提示词
+                    with st.spinner("思考中..."):
+                        stream = client.chat.completions.create(
+                            model="qwen3.5-flash",
+                            messages=st.session_state["messages"],
+                            temperature=0.7,
+                            stream=True
+                        )
+                        full_response = st.write_stream(stream)
 
-                # 记录 AI 的回复
-                st.session_state["messages"].append({"role": "assistant", "content": full_response})
+                    # 记录 AI 的回复
+                    st.session_state["messages"].append({"role": "assistant", "content": full_response})
 
-                # 滑动窗口清理历史逻辑 (保留最近10条)
-                MAX_HISTORY = 10
-                if len(st.session_state["messages"]) > (MAX_HISTORY + 1):
-                    # 安全切片重新赋值
-                    st.session_state["messages"] = [st.session_state["messages"][0]] + st.session_state["messages"][
-                        -MAX_HISTORY:]
+                    # 滑动窗口清理历史逻辑 (保留最近10条)
+                    MAX_HISTORY = 10
+                    if len(st.session_state["messages"]) > (MAX_HISTORY + 1):
+                        st.session_state["messages"] = [st.session_state["messages"][0]] + st.session_state["messages"][
+                            -MAX_HISTORY:]
 
-            except Exception as e:
-                if "429" in str(e) or "Throttling" in str(e):
-                    st.warning("当前通道较忙，请等待 10 秒后再试。")
-                else:
-                    st.error(f"调用失败: {e}")
+                except Exception as e:
+                    if "429" in str(e) or "Throttling" in str(e):
+                        st.warning("当前通道较忙，请等待 10 秒后再试。")
+                    else:
+                        st.error(f"调用失败: {e}")
