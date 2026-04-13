@@ -207,137 +207,22 @@ if selected_tab == "单点精细诊断":
         st.dataframe(pd.DataFrame(rec_results).sort_values(by="年度核算固碳潜力 (gC/m²/yr)", ascending=False),
                      use_container_width=True, hide_index=True)
 
-# --- 模块 2: 区域批量测算 ---
-elif selected_tab == "区域批量测算":
-    st.markdown("### 大规模区域测算")
-    st.info("说明：支持批量上传区域林班调查数据，系统将自动执行合规性校验并输出核算报表。")
-
-    st.markdown("#### 填表规范说明")
-    st.warning("""
-    **核心注意：** 【植被类型】字段请务必填写对应的**数字代码**：
-    * **1** 代表 **乔木 (森林)** | **2** 代表 **灌木** | **3** 代表 **草本/农田**
-    """)
-
-    template_df = pd.DataFrame({
-        '地块编号': ['Plot_001', 'Plot_002', 'Plot_003'],
-        '年均温度 (℃)': [15.0, 18.5, 16.0],
-        '年均相对湿度 (%)': [70.0, 65.0, 75.0],
-        '年降水总量 (mm)': [1000.0, 850.0, 1200.0],
-        '年均太阳辐射 (W/m²)': [150.0, 200.0, 180.0],
-        '坡度 (°)': [15.0, 25.0, 10.0],
-        '土壤厚度 (cm)': [10.0, 30.0, 8.0],
-        '裸岩率 (%)': [60.0, 40.0, 80.0],
-        '面积 (公顷)': [5.5, 12.0, 3.2],
-        '植被类型': [1, 2, 3]
-    })
-
-    st.download_button(
-        label="下载标准核算数据模板 (.csv)",
-        data=template_df.to_csv(index=False).encode('utf-8-sig'),
-        file_name="固碳资产批量核算模板.csv",
-        mime="text/csv",
-        use_container_width=True
-    )
-
-    st.markdown("---")
-    st.markdown("##### 请选择或拖拽区域调查数据表至下方区域")
-    uploaded_file = st.file_uploader(label="数据上传区", type=["csv", "xlsx"], label_visibility="collapsed")
-
-    if uploaded_file is not None:
-        try:
-            if uploaded_file.name.endswith('.csv'):
-                try:
-                    df_input = pd.read_csv(uploaded_file, encoding='utf-8')
-                except UnicodeDecodeError:
-                    uploaded_file.seek(0)
-                    df_input = pd.read_csv(uploaded_file, encoding='gbk')
-            else:
-                df_input = pd.read_excel(uploaded_file)
-
-            with st.spinner("正在执行系统合规性校验..."):
-                cleaned_columns = [
-                    str(col).strip().replace("W/m2", "W/m²").replace("W/m^2", "W/m²").replace("（", "(").replace("）",
-                                                                                                                ")") for
-                    col in df_input.columns]
-                df_input.columns = cleaned_columns
-                df_clean = df_input.dropna(how='all')
-                required_cols = ['年均温度 (℃)', '年均相对湿度 (%)', '年降水总量 (mm)', '年均太阳辐射 (W/m²)',
-                                 '坡度 (°)', '土壤厚度 (cm)', '裸岩率 (%)', '面积 (公顷)', '植被类型']
-                missing_cols = [col for col in required_cols if col not in df_clean.columns]
-
-                if missing_cols:
-                    st.error(f"校验失败：缺失核心业务字段：{missing_cols}")
-                    st.stop()
-
-                for col in [c for c in required_cols if c != '植被类型']:
-                    df_clean[col] = pd.to_numeric(df_clean[col], errors='coerce')
-                df_clean = df_clean.dropna(subset=required_cols)
-                st.success("数据校验通过。")
-
-            st.write("**数据预览 (前5行)：**")
-            st.dataframe(df_clean.head(), use_container_width=True)
-
-            col_btn1, col_btn2 = st.columns(2)
-            mapping_dict = {
-                '年均温度 (℃)': 'T', '年均相对湿度 (%)': 'RH', '年降水总量 (mm)': 'R',
-                '年均太阳辐射 (W/m²)': 'Rg', '坡度 (°)': 'Slope', '土壤厚度 (cm)': 'Soil_Thickness',
-                '裸岩率 (%)': 'Rock_Outcrop', '植被类型': 'Veg_Type'
-            }
-
-            if col_btn1.button("执行现状资产核算", type="primary", use_container_width=True):
-                with st.spinner("核算中..."):
-                    X_matrix = df_clean[list(mapping_dict.keys())].rename(columns=mapping_dict)
-                    results = calc_engine.predict(X_matrix) * 365
-                    df_clean['年度核算固碳潜力'] = results.round(4)
-                    df_clean['年度综合损益 (元)'] = df_clean.apply(
-                        lambda r:
-                        calculate_carbon_assets(r['年度核算固碳潜力'], r['面积 (公顷)'], DEFAULT_CARBON_PRICE)[
-                            'annual_revenue'], axis=1
-                    )
-                    st.dataframe(df_clean, use_container_width=True)
-                    st.download_button("导出核算报表", df_clean.to_csv(index=False).encode('utf-8-sig'),
-                                       "现状资产核算报表.csv", "text/csv")
-
-            if col_btn2.button("执行最优规划推演", type="secondary", use_container_width=True):
-                with st.spinner("推演中..."):
-                    base_features = df_clean[list(mapping_dict.keys())].rename(columns=mapping_dict).drop(
-                        columns=['Veg_Type'])
-                    results_matrix = pd.DataFrame({
-                        '树': calc_engine.predict(base_features.assign(Veg_Type=1)) * 365,
-                        '灌': calc_engine.predict(base_features.assign(Veg_Type=2)) * 365,
-                        '草': calc_engine.predict(base_features.assign(Veg_Type=3)) * 365
-                    })
-                    results_matrix.loc[base_features['Soil_Thickness'] < 15, '树'] = -99999.0
-                    best_option_idx = results_matrix.idxmax(axis=1)
-                    desc_map = {'树': '乔木 (森林)', '灌': '灌木', '草': '草本/农田'}
-                    df_clean['系统推荐方案'] = best_option_idx.map(desc_map)
-                    df_clean['规划后固碳潜力'] = results_matrix.max(axis=1).round(4)
-                    df_clean['规划后预期损益 (元)'] = df_clean.apply(
-                        lambda r: calculate_carbon_assets(r['规划后固碳潜力'], r['面积 (公顷)'], DEFAULT_CARBON_PRICE)[
-                            'annual_revenue'], axis=1
-                    )
-                    st.success("最优规划推演完成。")
-                    st.dataframe(df_clean, use_container_width=True)
-                    st.download_button("导出规划建议书", df_clean.to_csv(index=False).encode('utf-8-sig'),
-                                       "最优生态规划建议书.csv", "text/csv")
-        except Exception as e:
-            st.error(f"核算异常：{str(e)}")
-
 # --- 模块 3: 智能生态助理 (新增) ---
 elif selected_tab == "智能生态助理":
-    st.markdown("### 🤖 智能生态助理 (GLM-4.7-Flash)")
+    # 标题已修改为 Qwen3.5-Flash
+    st.markdown("### 🤖 智能生态助理 (Qwen3.5-Flash)")
     st.info("我是基于大语言模型的生态规划助手。您可以向我提问关于碳汇核算逻辑、喀斯特地貌修复建议或系统使用说明。")
 
-    # 安全地初始化 OpenAI 客户端
+    # 安全地初始化 OpenAI 客户端 (连接到阿里云百炼)
     try:
-        api_key = st.secrets["ZHIPU_API_KEY"]
+        api_key = st.secrets["ALIYUN_API_KEY"]  # 读取阿里云的密码
         client = OpenAI(
             api_key=api_key,
-            base_url="https://open.bigmodel.cn/api/paas/v4/"
+            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"  # 阿里云的接口大门
         )
     except KeyError:
         st.warning(
-            "⚠️ 系统未检测到 API 密钥。请确保已在 `.streamlit/secrets.toml` 或 Streamlit Cloud 的 Secrets 设置中配置了 `ZHIPU_API_KEY`。")
+            "⚠️ 系统未检测到 API 密钥。请确保已在 `.streamlit/secrets.toml` 或 Streamlit Cloud 的 Secrets 设置中配置了 `ALIYUN_API_KEY`。")
         st.stop()
     except Exception as e:
         st.error(f"初始化大模型客户端失败: {e}")
@@ -368,22 +253,29 @@ elif selected_tab == "智能生态助理":
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # 2. 调用大模型并显示思考过程
+        # 2. 调用大模型并显示思考过程 (升级为流式输出！)
+        # 【注意这里的缩进修复】：assistant 的框必须和 user 的框平级
         with st.chat_message("assistant"):
-            message_placeholder = st.empty()
-            with st.spinner("引擎深度思考中..."):
-                try:
-                    # 极其关键：调用你查到的最新 4.7-flash 免费模型
-                    response = client.chat.completions.create(
-                        model="glm-4.7-flash",
-                        messages=st.session_state.messages,
-                        temperature=0.7
-                    )
-                    full_response = response.choices[0].message.content
-                    message_placeholder.markdown(full_response)
+            try:
+                # 核心改动：模型名字换成了通义千问极速版
+                stream = client.chat.completions.create(
+                    model="qwen3.5-flash",
+                    messages=st.session_state.messages,
+                    temperature=0.7,
+                    stream=True  # 👈 魔法开关：开启打字机流式输出
+                )
 
-                    # 3. 把大模型的回答也存入历史，让它有“记忆”
-                    st.session_state.messages.append({"role": "assistant", "content": full_response})
+                # 使用 Streamlit 原生的打字机渲染组件
+                full_response = st.write_stream(stream)
 
-                except Exception as e:
-                    st.error(f"调用 API 失败，请检查网络或配置: {str(e)}")
+                # 3. 把大模型的完整回答存入历史，让它有“记忆”
+                st.session_state.messages.append({"role": "assistant", "content": full_response})
+
+            except Exception as e:
+                error_str = str(e)
+                # 兼容阿里可能出现的限流报错提示
+                if "429" in error_str or "Throttling" in error_str:
+                    st.warning("算力通道当前比较拥挤，或者您发送得太快啦。请等待 10 秒后再试一次哦！")
+                else:
+                    # 其他真正的报错再显示出来
+                    st.error(f"调用 API 失败: {error_str}")
