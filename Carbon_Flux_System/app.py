@@ -6,6 +6,9 @@ import os
 import base64
 from typing import Dict, Any
 
+# 【新增引入】用于调用大模型 API
+from openai import OpenAI
+
 # ================= 0. 环境路径初始化 =================
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
@@ -80,7 +83,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# ================= 动态渲染 Header：放大的 Logo 与标题 =================
+# ================= 动态渲染 Header =================
 if bin_str:
     st.markdown(
         f"""
@@ -105,9 +108,10 @@ calc_engine = load_model()
 if 'active_tab' not in st.session_state:
     st.session_state.active_tab = "单点精细诊断"
 
+# 【修改点】：增加了一个全新的导航选项 "智能生态助理"
 selected_tab = st.radio(
     label="导航菜单",
-    options=["单点精细诊断", "区域批量测算"],
+    options=["单点精细诊断", "区域批量测算", "智能生态助理"],
     horizontal=True,
     label_visibility="collapsed",
     key="active_tab"
@@ -130,7 +134,6 @@ if selected_tab == "单点精细诊断":
     with col_input_right:
         st.subheader("地表特征与人为干预")
         Slope = st.slider("坡度 (°)", 0.0, 60.0, 15.0)
-        # 【修改点】：最小土层锁定为 5.0cm，默认值设为 15.0cm 以规避模型边界 Bug
         Soil_Thickness = st.slider("土壤厚度 (cm)", 10.0, 100.0, 15.0)
         Rock_Outcrop = st.slider("裸岩率 (%)", 0.0, 100.0, 60.0)
         veg_choice = st.selectbox("目标植被类型", list(VEG_MAPPING.keys()))
@@ -319,3 +322,68 @@ elif selected_tab == "区域批量测算":
                                        "最优生态规划建议书.csv", "text/csv")
         except Exception as e:
             st.error(f"核算异常：{str(e)}")
+
+# --- 模块 3: 智能生态助理 (新增) ---
+elif selected_tab == "智能生态助理":
+    st.markdown("### 🤖 智能生态助理 (GLM-4.7-Flash)")
+    st.info("我是基于大语言模型的生态规划助手。您可以向我提问关于碳汇核算逻辑、喀斯特地貌修复建议或系统使用说明。")
+
+    # 安全地初始化 OpenAI 客户端
+    try:
+        api_key = st.secrets["ZHIPU_API_KEY"]
+        client = OpenAI(
+            api_key=api_key,
+            base_url="https://open.bigmodel.cn/api/paas/v4/"
+        )
+    except KeyError:
+        st.warning(
+            "⚠️ 系统未检测到 API 密钥。请确保已在 `.streamlit/secrets.toml` 或 Streamlit Cloud 的 Secrets 设置中配置了 `ZHIPU_API_KEY`。")
+        st.stop()
+    except Exception as e:
+        st.error(f"初始化大模型客户端失败: {e}")
+        st.stop()
+
+    # 初始化会话级聊天历史 (包含强大的系统人设)
+    if "messages" not in st.session_state:
+        st.session_state.messages = [
+            {"role": "system", "content": """你是一个专业的喀斯特生态环境与碳汇资产评估AI助手。
+            你的任务是协助用户理解环境参数对固碳潜力的影响。请严谨使用生态学和碳汇经济学术语，用简练的中文分段回答。
+            核心规则：
+            1. 喀斯特地貌中，土层厚度是核心限制因子。低于15cm不建议种乔木，强制种会面临退化。
+            2. 高温（>15℃）在缺土环境下会加剧土壤呼吸作用，导致严重碳排放。
+            3. 回答要落地、实在，不要过度堆砌套话。"""}
+        ]
+
+    # 将历史对话渲染到界面上 (隐藏掉底层的 system 设定)
+    for msg in st.session_state.messages:
+        if msg["role"] != "system":
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+
+    # 捕获用户的聊天输入
+    if prompt := st.chat_input("您可以这样问：为什么土层厚度低于15cm时系统会发出严重预警？"):
+
+        # 1. 把用户的话显示出来并存入历史
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        # 2. 调用大模型并显示思考过程
+        with st.chat_message("assistant"):
+            message_placeholder = st.empty()
+            with st.spinner("引擎深度思考中..."):
+                try:
+                    # 极其关键：调用你查到的最新 4.7-flash 免费模型
+                    response = client.chat.completions.create(
+                        model="glm-4.7-flash",
+                        messages=st.session_state.messages,
+                        temperature=0.7
+                    )
+                    full_response = response.choices[0].message.content
+                    message_placeholder.markdown(full_response)
+
+                    # 3. 把大模型的回答也存入历史，让它有“记忆”
+                    st.session_state.messages.append({"role": "assistant", "content": full_response})
+
+                except Exception as e:
+                    st.error(f"调用 API 失败，请检查网络或配置: {str(e)}")

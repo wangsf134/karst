@@ -14,3 +14,6 @@ altair
 
 # 办公自动化支持
 openpyxl
+
+#大模型接入
+openai
