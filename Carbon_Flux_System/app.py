@@ -248,8 +248,21 @@ elif selected_tab == "智能生态助理":
     # 捕获用户的聊天输入
     if prompt := st.chat_input("您可以这样问：为什么土层厚度低于15cm时系统会发出严重预警？"):
 
-        # 1. 把用户的话显示出来并存入历史
-        st.session_state.messages.append({"role": "user", "content": prompt})
+        # 新增：历史记录清理逻辑 (滑动窗口)
+        # 设定：最多保留最新的 10 条对话记录（相当于 5 轮“问+答”）。
+        # 加上 1 条雷打不动的 System 人设，包裹里最多只能装 11 个元素。
+        MAX_HISTORY_LENGTH = 10
+
+        # 检查包裹
+        if len(st.session_state.messages) > (MAX_HISTORY_LENGTH + 1):
+            # 保护系统人设
+            system_prompt = st.session_state.messages[0]
+            # 截取最新最近的10条对话
+            recent_history = st.session_state.messages[-MAX_HISTORY_LENGTH:]
+            #把人设和最新的对话重新拼装，替换掉原来的大雪球
+            st.session_state.messages = [system_prompt] + recent_history
+        # ====================================================================
+
         with st.chat_message("user"):
             st.markdown(prompt)
 
