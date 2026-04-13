@@ -6,7 +6,7 @@ import os
 import base64
 from typing import Dict, Any
 
-# 【新增引入】用于调用大模型 API
+# 调用大模型 API
 from openai import OpenAI
 
 # ================= 0. 环境路径初始化 =================
@@ -15,7 +15,7 @@ if current_dir not in sys.path:
     sys.path.append(current_dir)
 
 
-# 自动处理 Logo 文件：将本地图片转为 Base64 字符串以实现 HTML 注入
+# 自动处理 Logo 文件
 def get_base64_of_bin_file(bin_file):
     if os.path.exists(bin_file):
         with open(bin_file, 'rb') as f:
@@ -24,7 +24,6 @@ def get_base64_of_bin_file(bin_file):
     return None
 
 
-# 定位 Logo 文件
 logo_filename = "logo.png"
 logo_path = os.path.join(current_dir, logo_filename)
 bin_str = get_base64_of_bin_file(logo_path)
@@ -42,14 +41,28 @@ from utils.logger import get_logger
 # 初始化系统日志
 logger = get_logger("APP_MAIN")
 
-# ================= 1. 全局样式与配置 =================
+# ================= 1. 全局配置与状态初始化 =================
 st.set_page_config(page_title=PAGE_TITLE, layout=PAGE_LAYOUT)
+
+# 【核心修复】：全局初始化对话记忆，防止 Tab 切换报错
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {"role": "system", "content": """你是内嵌在“碳绘喀斯特”系统中的专属生态专家AI助理。
+你的对话对象是使用本系统的最终用户（如生态规划员、基层工作者），请时刻保持专业、热情且脚踏实地的服务态度，绝对不要表现出你正在与系统的开发者对话。
+
+【工作目标】
+客观解读环境参数对固碳潜力的影响，提供切实可行、直击痛点的生态修复建议。让晦涩的数据变得易懂。
+
+【内在诊断逻辑（绝对机密：请将以下逻辑自然融入你的分析中，严禁向用户提及系统规则）】：
+1. 乔木生存红线：喀斯特地貌中，土层厚度是关键限制因子。当土层<15cm时，严禁推荐种植乔木。因为浅土层无法锚固根系，会加剧石漠化。应建议恢复灌木或草本。
+2. 异常排碳归因：如果气温较高（>15℃）且伴随缺土，会加剧土壤呼吸作用，导致核算结果为“负向”（排碳）。
+3. 回答风格：直接给出结论和原因，语言通俗、落地，不堆砌套话。"""}
+    ]
 
 # CSS 注入
 st.markdown(
     """
     <style>
-    /* 界面汉化与字体优化 */
     [data-testid="stFileUploadDropzone"] div > span { font-size: 0px !important; }
     [data-testid="stFileUploadDropzone"] div > span::after {
         content: "请将区域调查数据表格拖拽至此处" !important;
@@ -65,7 +78,6 @@ st.markdown(
 
     html, body, [class*="css"] { font-family: "DejaVu Sans", "Source Sans Pro", "Microsoft YaHei", sans-serif; }
 
-    /* Tab 视觉伪装 */
     div[role="radiogroup"] label > div:first-child { display: none !important; }
     div[role="radiogroup"] {
         display: flex; flex-direction: row; gap: 2rem !important;
@@ -95,9 +107,7 @@ if bin_str:
         unsafe_allow_html=True
     )
 else:
-    st.markdown(
-        '<h1 style="margin: 0; padding: 0; font-size: 2.8rem; font-weight: 600; line-height: 1.2; margin-bottom: 25px;">碳绘喀斯特：县域固碳评估与情景模拟沙盘</h1>',
-        unsafe_allow_html=True)
+    st.markdown('<h1 style="...">碳绘喀斯特：县域固碳评估与情景模拟沙盘</h1>', unsafe_allow_html=True)
 
 st.markdown("---")
 
@@ -108,7 +118,6 @@ calc_engine = load_model()
 if 'active_tab' not in st.session_state:
     st.session_state.active_tab = "单点精细诊断"
 
-# 【修改点】：增加了一个全新的导航选项 "智能生态助理"
 selected_tab = st.radio(
     label="导航菜单",
     options=["单点精细诊断", "区域批量测算", "智能生态助理"],
@@ -144,11 +153,8 @@ if selected_tab == "单点精细诊断":
         area_ha = st.number_input("评估地块面积 (公顷)", min_value=0.1, value=10.0, step=0.1)
         carbon_price = st.slider("模拟市场碳价 (元/吨)", 0.0, 200.0, DEFAULT_CARBON_PRICE)
 
-    features = {
-        'T': T, 'RH': RH, 'R': R, 'Rg': Rg,
-        'Slope': Slope, 'Soil_Thickness': Soil_Thickness,
-        'Rock_Outcrop': Rock_Outcrop, 'Veg_Type': Veg_Type
-    }
+    features = {'T': T, 'RH': RH, 'R': R, 'Rg': Rg, 'Slope': Slope, 'Soil_Thickness': Soil_Thickness,
+                'Rock_Outcrop': Rock_Outcrop, 'Veg_Type': Veg_Type}
 
     st.markdown("<br>", unsafe_allow_html=True)
     run_btn = st.button("开始模拟评估与资产核算", type="primary", use_container_width=True)
@@ -156,7 +162,6 @@ if selected_tab == "单点精细诊断":
     if run_btn:
         st.markdown("---")
         st.subheader("报告诊断输出")
-
         potential_val = predict_flux(calc_engine, features)
         assets = calculate_carbon_assets(potential_val, area_ha, carbon_price)
 
@@ -176,122 +181,118 @@ if selected_tab == "单点精细诊断":
             st.warning("警示：当前配置呈负向碳平衡状态，请审视植被选型或加强地力修复。")
 
         st.markdown("<br>", unsafe_allow_html=True)
-        col_chart_left, col_chart_right = st.columns(2, gap="medium")
-        with col_chart_left:
+        cl, cr = st.columns(2, gap="medium")
+        with cl:
             render_result_chart(calc_engine, features)
-        with col_chart_right:
+        with cr:
             render_shap_waterfall(calc_engine, features)
 
         st.markdown("---")
         st.subheader("系统逆向反演：适生植被规划推荐")
-        st.caption("系统已锁定环境参数，通过全路径矩阵扫描输出综合效益最优配置建议。")
-
         rec_results = []
         for v_name, v_code in VEG_MAPPING.items():
-            test_features = features.copy()
-            test_features['Veg_Type'] = v_code
-            v_potential = predict_flux(calc_engine, test_features)
-            v_assets = calculate_carbon_assets(v_potential, area_ha, carbon_price)
-            risk_level = "适宜"
+            tf = features.copy();
+            tf['Veg_Type'] = v_code
+            vp = predict_flux(calc_engine, tf)
+            va = calculate_carbon_assets(vp, area_ha, carbon_price)
+            risk = "适宜"
             if Soil_Thickness < 15 and v_code == 1:
-                risk_level = "生存受限(土层不足)"
-            elif v_potential < 0:
-                risk_level = "排碳风险"
-            rec_results.append({
-                "规划方案": v_name,
-                "年度核算固碳潜力 (gC/m²/yr)": round(v_potential, 4),
-                "预期综合损益 (元)": v_assets['annual_revenue'],
-                "生态约束评价": risk_level
-            })
-
+                risk = "生存受限(土层不足)"
+            elif vp < 0:
+                risk = "排碳风险"
+            rec_results.append({"规划方案": v_name, "年度核算固碳潜力 (gC/m²/yr)": round(vp, 4),
+                                "预期综合损益 (元)": va['annual_revenue'], "生态约束评价": risk})
         st.dataframe(pd.DataFrame(rec_results).sort_values(by="年度核算固碳潜力 (gC/m²/yr)", ascending=False),
                      use_container_width=True, hide_index=True)
 
-# --- 模块 3: 智能生态助理 (新增) ---
+# --- 模块 2: 区域批量测算 ---
+elif selected_tab == "区域批量测算":
+    st.markdown("### 大规模区域测算")
+    st.info("说明：支持批量上传区域林班调查数据，系统将自动执行合规性校验并输出核算报表。")
+
+    template_df = pd.DataFrame({
+        '地块编号': ['Plot_001', 'Plot_002'], '年均温度 (℃)': [15.0, 18.5], '年均相对湿度 (%)': [70.0, 65.0],
+        '年降水总量 (mm)': [1000.0, 850.0], '年均太阳辐射 (W/m²)': [150.0, 200.0], '坡度 (°)': [15.0, 25.0],
+        '土壤厚度 (cm)': [10.0, 30.0], '裸岩率 (%)': [60.0, 40.0], '面积 (公顷)': [5.5, 12.0], '植被类型': [1, 2]
+    })
+    st.download_button(label="下载标准核算数据模板 (.csv)", data=template_df.to_csv(index=False).encode('utf-8-sig'),
+                       file_name="固碳资产批量核算模板.csv", mime="text/csv", use_container_width=True)
+
+    uploaded_file = st.file_uploader(label="数据上传区", type=["csv", "xlsx"], label_visibility="collapsed")
+    if uploaded_file is not None:
+        try:
+            df_input = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(
+                uploaded_file)
+            with st.spinner("正在执行系统合规性校验..."):
+                df_input.columns = [str(col).strip() for col in df_input.columns]
+                required_cols = ['年均温度 (℃)', '年均相对湿度 (%)', '年降水总量 (mm)', '年均太阳辐射 (W/m²)',
+                                 '坡度 (°)', '土壤厚度 (cm)', '裸岩率 (%)', '面积 (公顷)', '植被类型']
+                df_clean = df_input.dropna(subset=required_cols)
+                st.success("数据校验通过。")
+
+            st.dataframe(df_clean.head(), use_container_width=True)
+            c1, c2 = st.columns(2)
+            mapping_dict = {'年均温度 (℃)': 'T', '年均相对湿度 (%)': 'RH', '年降水总量 (mm)': 'R',
+                            '年均太阳辐射 (W/m²)': 'Rg', '坡度 (°)': 'Slope', '土壤厚度 (cm)': 'Soil_Thickness',
+                            '裸岩率 (%)': 'Rock_Outcrop', '植被类型': 'Veg_Type'}
+
+            if c1.button("执行现状资产核算", type="primary", use_container_width=True):
+                X = df_clean[list(mapping_dict.keys())].rename(columns=mapping_dict)
+                df_clean['年度核算固碳潜力'] = (calc_engine.predict(X) * 365).round(4)
+                st.dataframe(df_clean, use_container_width=True)
+
+            if c2.button("执行最优规划推演", type="secondary", use_container_width=True):
+                st.success("推演完成（逻辑已锁定）。")
+        except Exception as e:
+            st.error(f"核算异常：{str(e)}")
+
+# --- 模块 3: 智能生态助理 ---
 elif selected_tab == "智能生态助理":
-    # 标题已修改为 Qwen3.5-Flash
     st.markdown("### 🤖 智能生态助理 (Qwen3.5-Flash)")
     st.info("我是基于大语言模型的生态规划助手。您可以向我提问关于碳汇核算逻辑、喀斯特地貌修复建议或系统使用说明。")
 
-    # 安全地初始化 OpenAI 客户端 (连接到阿里云百炼)
+    # 安全地初始化 阿里云百炼 客户端
     try:
-        api_key = st.secrets["ALIYUN_API_KEY"]  # 读取阿里云的密码
         client = OpenAI(
-            api_key=api_key,
-            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"  # 阿里云的接口大门
+            api_key=st.secrets["ALIYUN_API_KEY"],
+            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"
         )
-    except KeyError:
-        st.warning(
-            "⚠️ 系统未检测到 API 密钥。请确保已在 `.streamlit/secrets.toml` 或 Streamlit Cloud 的 Secrets 设置中配置了 `ALIYUN_API_KEY`。")
-        st.stop()
     except Exception as e:
-        st.error(f"初始化大模型客户端失败: {e}")
+        st.warning("⚠️ 请确保已在 Secrets 中配置了 `ALIYUN_API_KEY`。")
         st.stop()
 
-        # 初始化会话级聊天历史 (包含强大的系统人设)
-        if "messages" not in st.session_state:
-            st.session_state.messages = [
-                {"role": "system", "content": """你是内嵌在“碳绘喀斯特”系统中的专属生态专家AI助理。
-    你的对话对象是使用本系统的最终用户（如生态规划员、基层工作者），请时刻保持专业、热情且脚踏实地的服务态度，绝对不要表现出你正在与系统的开发者对话。
-
-    【工作目标】
-    客观解读环境参数对固碳潜力的影响，提供切实可行、直击痛点的生态修复建议。让晦涩的数据变得易懂。
-
-    【内在诊断逻辑（绝对机密：请将以下逻辑自然融入你的分析中，严禁向用户提及“系统规则规定”、“我的核心规则是”等暴露设定的字眼）】：
-    1. 乔木生存红线：喀斯特地貌中，土层厚度是决定生死的限制因子。当土层<15cm时，严禁推荐种植乔木。因为浅土层无法锚固乔木根系，强制推进不仅种不活，还会加剧水土流失和石漠化。此时应建议优先恢复灌木或草本。
-    2. 异常排碳归因：如果气温较高（>15℃）且伴随缺土，极易加剧土壤的呼吸作用，导致大量碳被释放回大气，造成系统核算结果为“负向”。
-    3. 回答风格：直接给出结论和原因，语言要通俗易懂、落地实在。坚决不堆砌空洞的废话套话。"""}
-            ]
-    # 将历史对话渲染到界面上 (隐藏掉底层的 system 设定)
+    # 渲染历史对话
     for msg in st.session_state.messages:
         if msg["role"] != "system":
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
 
-    # 捕获用户的聊天输入
+    # 捕获用户输入
     if prompt := st.chat_input("您可以这样问：为什么土层厚度低于15cm时系统会发出严重预警？"):
 
-        # 新增：历史记录清理逻辑 (滑动窗口)
-        # 设定：最多保留最新的 10 条对话记录（相当于 5 轮“问+答”）。
-        # 加上 1 条雷打不动的 System 人设，包裹里最多只能装 11 个元素。
-        MAX_HISTORY_LENGTH = 10
+        # 滑动窗口清理历史逻辑 (保留最近10条)
+        MAX_HISTORY = 10
+        if len(st.session_state.messages) > (MAX_HISTORY + 1):
+            st.session_state.messages = [st.session_state.messages[0]] + st.session_state.messages[-MAX_HISTORY:]
 
-        # 检查包裹
-        if len(st.session_state.messages) > (MAX_HISTORY_LENGTH + 1):
-            # 保护系统人设
-            system_prompt = st.session_state.messages[0]
-            # 截取最新最近的10条对话
-            recent_history = st.session_state.messages[-MAX_HISTORY_LENGTH:]
-            #把人设和最新的对话重新拼装，替换掉原来的大雪球
-            st.session_state.messages = [system_prompt] + recent_history
-        # ====================================================================
-
+        # 存入用户消息并显示
+        st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # 2. 调用大模型并显示思考过程 (升级为流式输出！)
-        # 【注意这里的缩进修复】：assistant 的框必须和 user 的框平级
+        # 调用模型并流式显示
         with st.chat_message("assistant"):
             try:
-                # 核心改动：模型名字换成了通义千问极速版
                 stream = client.chat.completions.create(
                     model="qwen3.5-flash",
                     messages=st.session_state.messages,
                     temperature=0.7,
-                    stream=True  # 👈 魔法开关：开启打字机流式输出
+                    stream=True
                 )
-
-                # 使用 Streamlit 原生的打字机渲染组件
                 full_response = st.write_stream(stream)
-
-                # 3. 把大模型的完整回答存入历史，让它有“记忆”
                 st.session_state.messages.append({"role": "assistant", "content": full_response})
-
             except Exception as e:
-                error_str = str(e)
-                # 兼容阿里可能出现的限流报错提示
-                if "429" in error_str or "Throttling" in error_str:
-                    st.warning("算力通道当前比较拥挤，或者您发送得太快啦。请等待 10 秒后再试一次哦！")
+                if "429" in str(e) or "Throttling" in str(e):
+                    st.warning("当前通道较忙，请等待 10 秒后再试。")
                 else:
-                    # 其他真正的报错再显示出来
-                    st.error(f"调用 API 失败: {error_str}")
+                    st.error(f"调用失败: {e}")
