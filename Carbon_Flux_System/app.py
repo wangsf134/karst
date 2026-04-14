@@ -155,7 +155,7 @@ if selected_tab == "单点精细诊断":
                 'Rock_Outcrop': Rock_Outcrop, 'Veg_Type': Veg_Type}
 
     st.markdown("<br>", unsafe_allow_html=True)
-    run_btn = st.button("开始模拟评估与资产核算", type="primary", use_container_width=True)
+    run_btn = st.button("开始模拟评估与资产核算", type="primary", width="stretch")
 
     if run_btn:
         st.markdown("---")
@@ -201,7 +201,7 @@ if selected_tab == "单点精细诊断":
             rec_results.append({"规划方案": v_name, "年度核算固碳潜力 (gC/m²/yr)": round(vp, 4),
                                 "预期综合损益 (元)": va['annual_revenue'], "生态约束评价": risk})
         st.dataframe(pd.DataFrame(rec_results).sort_values(by="年度核算固碳潜力 (gC/m²/yr)", ascending=False),
-                     use_container_width=True, hide_index=True)
+                     width="stretch", hide_index=True)
 
 # --- 模块 2: 区域批量测算 ---
 elif selected_tab == "区域批量测算":
@@ -214,7 +214,7 @@ elif selected_tab == "区域批量测算":
         '土壤厚度 (cm)': [10.0, 30.0], '裸岩率 (%)': [60.0, 40.0], '面积 (公顷)': [5.5, 12.0], '植被类型': [1, 2]
     })
     st.download_button(label="下载标准核算数据模板 (.csv)", data=template_df.to_csv(index=False).encode('utf-8-sig'),
-                       file_name="固碳资产批量核算模板.csv", mime="text/csv", use_container_width=True)
+                       file_name="固碳资产批量核算模板.csv", mime="text/csv", width="stretch")
 
     uploaded_file = st.file_uploader(label="数据上传区", type=["csv", "xlsx"], label_visibility="collapsed")
     if uploaded_file is not None:
@@ -227,13 +227,13 @@ elif selected_tab == "区域批量测算":
                 df_clean = df_input.dropna(subset=required_cols)
                 st.success("数据校验通过。")
 
-            st.dataframe(df_clean.head(), use_container_width=True)
+            st.dataframe(df_clean.head(), width="stretch")
             c1, c2 = st.columns(2)
             mapping_dict = {'年均温度 (℃)': 'T', '年均相对湿度 (%)': 'RH', '年降水总量 (mm)': 'R',
                             '年均太阳辐射 (W/m²)': 'Rg', '坡度 (°)': 'Slope', '土壤厚度 (cm)': 'Soil_Thickness',
                             '裸岩率 (%)': 'Rock_Outcrop', '植被类型': 'Veg_Type'}
 
-            if c1.button("执行现状资产核算", type="primary", use_container_width=True):
+            if c1.button("执行现状资产核算", type="primary", width="stretch"):
                 with st.spinner("正在逐行执行安全核算..."):
                     def safe_predict_current(row):
                         features = {
@@ -256,17 +256,17 @@ elif selected_tab == "区域批量测算":
                     )
 
                     st.success("现状资产核算完成！")
-                    st.dataframe(df_clean, use_container_width=True)
+                    st.dataframe(df_clean, width="stretch")
 
                     st.download_button(
                         label="导出现状核算报表",
                         data=df_clean.to_csv(index=False).encode('utf-8-sig'),
                         file_name="现状资产核算报表.csv",
                         mime="text/csv",
-                        use_container_width=True
+                        width="stretch"
                     )
 
-            if c2.button("执行最优规划推演", type="secondary", use_container_width=True):
+            if c2.button("执行最优规划推演", type="secondary", width="stretch"):
                 with st.spinner("正在执行全矩阵推演 (含业务红线约束)..."):
                     def simulate_optimal(row):
                         base_features = {
@@ -306,7 +306,7 @@ elif selected_tab == "区域批量测算":
                     )
 
                     st.success("最优规划推演完成！浅土层已自动规避乔木。")
-                    st.dataframe(df_clean, use_container_width=True)
+                    st.dataframe(df_clean, width="stretch")
 
                     st.download_button("导出规划建议书", df_clean.to_csv(index=False).encode('utf-8-sig'),
                                        "最优生态规划建议书.csv", "text/csv")
