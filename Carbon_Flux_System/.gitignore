@@ -13,7 +13,4 @@ __pycache__/
 # macOS 系统文件
 .DS_Store
 
-# 注意：如果你的 .pkl 模型文件超过 100MB，Git 默认是传不上去的，需要用 Git LFS。
-# 如果模型不大，可以直接传；如果很大，请取消下面这行的注释，不要把模型传到 Git 上
-# models/*.pkl
 .streamlit/
