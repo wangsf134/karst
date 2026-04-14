@@ -189,7 +189,7 @@ if selected_tab == "单点精细诊断":
         st.subheader("系统逆向反演：适生植被规划推荐")
         rec_results = []
         for v_name, v_code in VEG_MAPPING.items():
-            tf = features.copy();
+            tf = features.copy()
             tf['Veg_Type'] = v_code
             vp = predict_flux(calc_engine, tf)
             va = calculate_carbon_assets(vp, area_ha, carbon_price)
@@ -219,8 +219,7 @@ elif selected_tab == "区域批量测算":
     uploaded_file = st.file_uploader(label="数据上传区", type=["csv", "xlsx"], label_visibility="collapsed")
     if uploaded_file is not None:
         try:
-            df_input = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(
-                uploaded_file)
+            df_input = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
             with st.spinner("正在执行系统合规性校验..."):
                 df_input.columns = [str(col).strip() for col in df_input.columns]
                 required_cols = ['年均温度 (℃)', '年均相对湿度 (%)', '年降水总量 (mm)', '年均太阳辐射 (W/m²)',
