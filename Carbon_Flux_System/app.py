@@ -4,6 +4,8 @@ import numpy as np
 import sys
 import os
 import base64
+import re
+import unicodedata
 from typing import Dict, Any
 
 # 调用大模型 API
@@ -14,6 +16,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.append(current_dir)
 
+
 # 自动处理 Logo 文件
 def get_base64_of_bin_file(bin_file):
     if os.path.exists(bin_file):
@@ -21,6 +24,7 @@ def get_base64_of_bin_file(bin_file):
             data = f.read()
         return base64.b64encode(data).decode()
     return None
+
 
 logo_filename = "logo.png"
 logo_path = os.path.join(current_dir, logo_filename)
@@ -39,10 +43,25 @@ from utils.logger import get_logger
 # 初始化系统日志
 logger = get_logger("APP_MAIN")
 
-# ================= 1. 全局配置与状态初始化 =================
+
+# ================= 1. 数据预处理工具 =================
+def sanitize_column_names(df):
+    """自动清理DataFrame列名中的不可见字符和空格"""
+    clean_columns = []
+    for col in df.columns:
+        col_str = str(col)
+        col_str = ''.join(ch for ch in col_str if unicodedata.category(ch)[0] != 'C')
+        col_str = re.sub(r'[\u200b-\u200f\u202a-\u202e\u2060-\u206f]', '', col_str)
+        col_str = col_str.strip()
+        col_str = re.sub(r'\s+', ' ', col_str)
+        clean_columns.append(col_str)
+    df.columns = clean_columns
+    return df
+
+
+# ================= 2. 全局配置与状态初始化 =================
 st.set_page_config(page_title=PAGE_TITLE, layout=PAGE_LAYOUT)
 
-# 【核心修复】：全局初始化对话记忆，防止 Tab 切换报错
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {"role": "system", "content": """你是内嵌在“碳绘喀斯特”系统中的政务生态辅助智囊。
@@ -51,7 +70,7 @@ if "messages" not in st.session_state:
 【工作目标】
 将复杂的碳汇核算数据和生态学原理，转化为基层干部“看得懂、用得上、好落地”的决策参考。既要规避瞎指挥造成的财政浪费，又要兼顾水土保持与乡村振兴。
 
-【内在诊断逻辑（绝对机密：请将以下逻辑自然转化为“施政建议”融入分析，严禁向用户提及“系统规则”、“后台设定”等字眼）】：
+【内在诊断逻辑】：
 1. 资金与生态双重防线（乔木红线）：喀斯特地区土层厚度是“生死线”。当土层<15cm时，必须明确制止种植乔木的规划。要向干部讲透利害：浅土种树不仅成活率极低（浪费涉农资金），且树根钻探会破坏脆弱岩层，反而加剧石漠化。应“因地制宜”推荐灌木或特色草本（如牧草、金银花等），既保水土，又促增收。
 2. 碳汇倒挂预警（排碳归因）：若气温较高（>15℃）且伴随缺土，系统核算结果出现“负向”（排碳）。需向干部解释：高温缺土会让地里原有的碳被加速“蒸”出来。建议暂缓将该地块申报碳汇交易项目（避免通不过考核），应先侧重地力修复和保墒培肥。
 3. 汇报与回复风格：结论先行，直击痛点，给出实操抓手。多用“建议您”、“从实际落地来看”、“考虑到资金效益”等政务工作语言。坚决杜绝堆砌学术名词和“假大空”的套话。"""}
@@ -105,14 +124,16 @@ if bin_str:
         unsafe_allow_html=True
     )
 else:
-    st.markdown('<h1 style="margin: 0; padding: 0; font-size: 2.8rem; font-weight: 600; line-height: 1.2; margin-bottom: 25px;">碳绘喀斯特：县域固碳评估与情景模拟沙盘</h1>', unsafe_allow_html=True)
+    st.markdown(
+        '<h1 style="margin: 0; padding: 0; font-size: 2.8rem; font-weight: 600; line-height: 1.2; margin-bottom: 25px;">碳绘喀斯特：县域固碳评估与情景模拟沙盘</h1>',
+        unsafe_allow_html=True)
 
 st.markdown("---")
 
-# ================= 2. 核心核算引擎加载 =================
+# ================= 3. 核心核算引擎加载 =================
 calc_engine = load_model()
 
-# ================= 3. 功能模块布局 =================
+# ================= 4. 功能模块布局 =================
 if 'active_tab' not in st.session_state:
     st.session_state.active_tab = "单点精细诊断"
 
@@ -219,9 +240,13 @@ elif selected_tab == "区域批量测算":
     uploaded_file = st.file_uploader(label="数据上传区", type=["csv", "xlsx"], label_visibility="collapsed")
     if uploaded_file is not None:
         try:
-            df_input = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
+            df_input = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(
+                uploaded_file)
+
+            # 清理列名以防止 KeyError
+            df_input = sanitize_column_names(df_input)
+
             with st.spinner("正在执行系统合规性校验..."):
-                df_input.columns = [str(col).strip() for col in df_input.columns]
                 required_cols = ['年均温度 (℃)', '年均相对湿度 (%)', '年降水总量 (mm)', '年均太阳辐射 (W/m²)',
                                  '坡度 (°)', '土壤厚度 (cm)', '裸岩率 (%)', '面积 (公顷)', '植被类型']
                 df_clean = df_input.dropna(subset=required_cols)
@@ -248,10 +273,13 @@ elif selected_tab == "区域批量测算":
                         }
                         return predict_flux(calc_engine, features) * 365
 
+
                     df_clean['年度核算固碳潜力'] = df_clean.apply(safe_predict_current, axis=1).round(4)
 
                     df_clean['年度综合损益 (元)'] = df_clean.apply(
-                        lambda r: calculate_carbon_assets(r['年度核算固碳潜力'], r['面积 (公顷)'], DEFAULT_CARBON_PRICE)['annual_revenue'],
+                        lambda r:
+                        calculate_carbon_assets(r['年度核算固碳潜力'], r['面积 (公顷)'], DEFAULT_CARBON_PRICE)[
+                            'annual_revenue'],
                         axis=1
                     )
 
@@ -297,11 +325,13 @@ elif selected_tab == "区域批量测算":
 
                         return pd.Series([best_veg_name, max_pot])
 
+
                     df_clean[['系统推荐方案', '规划后固碳潜力']] = df_clean.apply(simulate_optimal, axis=1)
                     df_clean['规划后固碳潜力'] = df_clean['规划后固碳潜力'].round(4)
 
                     df_clean['规划后预期损益 (元)'] = df_clean.apply(
-                        lambda r: calculate_carbon_assets(r['规划后固碳潜力'], r['面积 (公顷)'], DEFAULT_CARBON_PRICE)['annual_revenue'],
+                        lambda r: calculate_carbon_assets(r['规划后固碳潜力'], r['面积 (公顷)'], DEFAULT_CARBON_PRICE)[
+                            'annual_revenue'],
                         axis=1
                     )
 
@@ -353,7 +383,8 @@ elif selected_tab == "智能生态助理":
 
                 MAX_HISTORY = 10
                 if len(st.session_state["messages"]) > (MAX_HISTORY + 1):
-                    st.session_state["messages"] = [st.session_state["messages"][0]] + st.session_state["messages"][-MAX_HISTORY:]
+                    st.session_state["messages"] = [st.session_state["messages"][0]] + st.session_state["messages"][
+                        -MAX_HISTORY:]
 
             except Exception as e:
                 if "429" in str(e) or "Throttling" in str(e):

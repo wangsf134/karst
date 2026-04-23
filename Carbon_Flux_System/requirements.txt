@@ -1,19 +1,21 @@
 # Carbon_Flux_System 依赖清单
-# 核心框架 (已解除版本封印，解决云端编译报错)
+
+# 核心框架 (解除版本封印，解决云端编译报错)
 streamlit
 pandas
+numpy
 
 # 机器学习引擎 (严格锁定模型训练版本，防止 pkl 加载失败)
 scikit-learn==1.6.1
 joblib==1.3.2
 
-# 数据可视化与 XAI 可解释性 (已解除版本封印)
+# 数据可视化与 XAI 可解释性 (解除版本封印)
 shap
 matplotlib
 altair
 
-# 办公自动化支持
+# 办公自动化支持 (用于读取 xlsx 格式的林班调查数据)
 openpyxl
 
-#大模型接入
+# 大模型接入 (用于智能生态助理模块)
 openai
