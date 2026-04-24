@@ -2,59 +2,56 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 import shap
-import matplotlib as mpl
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
 import numpy as np
 import os
-from pathlib import Path
 
 
 # ==========================================
-# 自动查找并设置中文字体，解决云端部署中文乱码
+# 【核心修复】自动识别后缀并绝对路径加载字体
 # ==========================================
-def fix_chinese_display():
-    """自动查找并设置中文字体，解决云端部署时的中文乱码问题"""
-    # 定义可能的字体文件名（放在项目根目录或 fonts 子目录）
-    font_files = [
-        'SimHei.ttf', 'simhei.ttf', 'SimSun.ttf', 'simsun.ttf',
-        'MicrosoftYaHei.ttf', 'msyh.ttf', 'PingFangSC-Regular.ttf',
-        'fonts/SimHei.ttf', 'fonts/simhei.ttf'
-    ]
+def init_chinese_font():
+    """
+    针对云端和本地环境的通用字体加载方案
+    支持自动搜索 .ttf 和 .ttc 后缀
+    """
+    # 定位项目根目录 (假设此文件在 utils/ 文件夹下，向上走一级即为根目录)
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    root_dir = os.path.dirname(current_dir)
 
-    # 获取当前脚本所在目录
-    current_dir = Path(__file__).parent
+    # 自动搜索可能的 SimHei 文件名（匹配大小写及后缀）
+    target_font = None
+    possible_names = ["SimHei", "simhei"]
+    possible_exts = [".ttf", ".ttc", ".TTF", ".TTC"]
 
-    # 查找存在的字体文件
-    font_path = None
-    for font_file in font_files:
-        full_path = current_dir / font_file
-        if full_path.exists():
-            font_path = str(full_path.resolve())
-            break
+    for name in possible_names:
+        for ext in possible_exts:
+            test_path = os.path.join(root_dir, f"{name}{ext}")
+            if os.path.exists(test_path):
+                target_font = test_path
+                break
+        if target_font: break
 
-    if font_path:
-        # 创建字体属性
-        font_prop = mpl.font_manager.FontProperties(fname=font_path)
-
-        # 全局设置字体
-        plt.rcParams['font.family'] = font_prop.get_name()
-        plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
-
-        # 设置全局字体（更彻底）
-        mpl.rcParams['font.sans-serif'] = [font_prop.get_name()]
-        mpl.rcParams['axes.unicode_minus'] = False
-
-        return True
+    if target_font:
+        try:
+            # 1. 动态注册字体文件
+            fm.fontManager.addfont(target_font)
+            # 2. 获取该文件在系统内部真实的字体名称 (如 'SimHei')
+            prop = fm.FontProperties(fname=target_font)
+            # 3. 设置全局字体
+            plt.rcParams['font.family'] = prop.get_name()
+            # 4. 解决负号显示为方块的问题
+            plt.rcParams['axes.unicode_minus'] = False
+            return True
+        except Exception as e:
+            st.warning(f"字体注册失败: {e}")
+            return False
     else:
-        st.warning("未找到中文字体文件，请将 SimHei.ttf 等字体文件放在项目目录中以避免图表乱码。")
-        # 退而求其次，尝试使用系统可能存在的中文字体
-        plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'KaiTi', 'Arial Unicode MS']
-        plt.rcParams['axes.unicode_minus'] = False
+        # 报错时提示当前目录下到底有哪些文件，方便排查
+        files_in_dir = os.listdir(root_dir)
+        st.error(f"找不到 SimHei 字体文件！\n预期路径: {root_dir}\n当前根目录文件列表: {files_in_dir}")
         return False
-
-
-# 在程序最开始调用这个函数进行全局设置
-fix_chinese_display()
 
 
 # ==========================================
@@ -65,6 +62,8 @@ def render_result_chart(calc_engine, base_features):
     """
     渲染温度敏感性动态推演折线图 (使用 Altair)
     """
+    init_chinese_font()  # 确保绘图前加载字体
+
     st.markdown("#### 温度敏感性动态推演")
     st.caption("该图表展示在当前地貌与植被配置下，年度固碳潜力随年均环境温度变化的模拟趋势。")
 
@@ -99,6 +98,10 @@ def render_shap_waterfall(calc_engine, base_features):
     渲染核算因子边际贡献解析瀑布图 (使用 SHAP + Matplotlib)
     """
     st.markdown("#### 核算因子边际贡献解析")
+
+    # 核心：绘图前再次强制刷新字体设置，若失败则停止运行
+    if not init_chinese_font():
+        st.stop()
 
     input_df = pd.DataFrame([base_features])
 
