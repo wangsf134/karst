@@ -8,10 +8,11 @@ import re
 import unicodedata
 from typing import Dict, Any
 
-# 调用大模型 API
+# 调用大模型 API（用于智能生态助理模块）
 from openai import OpenAI
 
 # ================= 0. 环境路径初始化 =================
+# 将当前目录加入系统路径，确保内部模块能被正确导入
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.append(current_dir)
@@ -19,6 +20,17 @@ if current_dir not in sys.path:
 
 # 自动处理 Logo 文件
 def get_base64_of_bin_file(bin_file):
+    """
+    读取二进制文件并编码为 Base64 字符串。
+
+    主要用于将本地图片（如 logo.png）嵌入 HTML 而不依赖外部链接。
+
+    Args:
+        bin_file (str): 文件路径。
+
+    Returns:
+        str: 文件的 Base64 编码字符串；若文件不存在则返回 None。
+    """
     if os.path.exists(bin_file):
         with open(bin_file, 'rb') as f:
             data = f.read()
@@ -40,19 +52,33 @@ from utils.visualizer import render_result_chart, render_shap_waterfall
 from utils.economics import calculate_carbon_assets
 from utils.logger import get_logger
 
-# 初始化系统日志
+# 初始化系统日志记录器，用于追踪主程序运行状态
 logger = get_logger("APP_MAIN")
 
 
 # ================= 1. 数据预处理工具 =================
 def sanitize_column_names(df):
-    """自动清理DataFrame列名中的不可见字符和空格"""
+    """
+    自动清理 DataFrame 列名中的不可见字符和多余空格。
+
+    在批量上传的 Excel 或 CSV 文件中，列名经常携带零宽字符或首尾空格，
+    这会导致与系统内部的特征名称不匹配。该函数通过正则与 Unicode 分类进行清洗。
+
+    Args:
+        df (pd.DataFrame): 待清洗的原始数据框。
+
+    Returns:
+        pd.DataFrame: 列名已清洗的数据框。
+    """
     clean_columns = []
     for col in df.columns:
         col_str = str(col)
+        # 去除控制字符（类别 C）
         col_str = ''.join(ch for ch in col_str if unicodedata.category(ch)[0] != 'C')
+        # 去除零宽字符等常见隐性干扰
         col_str = re.sub(r'[\u200b-\u200f\u202a-\u202e\u2060-\u206f]', '', col_str)
         col_str = col_str.strip()
+        # 合并多个连续空格为单个空格
         col_str = re.sub(r'\s+', ' ', col_str)
         clean_columns.append(col_str)
     df.columns = clean_columns
@@ -62,9 +88,11 @@ def sanitize_column_names(df):
 # ================= 2. 全局配置与状态初始化 =================
 st.set_page_config(page_title=PAGE_TITLE, layout=PAGE_LAYOUT)
 
+# 初始化会话状态中的消息列表，用于维护智能生态助理的对话历史
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "system", "content": """你是内嵌在“碳绘喀斯特”系统中的政务生态辅助智囊。
+        {"role": "system", "content":
+            """你是内嵌在“碳绘喀斯特”系统中的政务生态辅助智囊。
 你的对话对象是一线基层政务工作者、驻村干部及生态规划员。请时刻保持务实、严谨、接地气的工作态度。你的目标是帮他们把好生态关，算好经济账。绝对不要表现出你正在与系统的开发者对话。
 
 【工作目标】
@@ -76,10 +104,11 @@ if "messages" not in st.session_state:
 3. 汇报与回复风格：结论先行，直击痛点，给出实操抓手。多用“建议您”、“从实际落地来看”、“考虑到资金效益”等政务工作语言。坚决杜绝堆砌学术名词和“假大空”的套话。"""}
     ]
 
-# CSS 注入
+# CSS 注入：自定义 Streamlit 组件样式，优化政务端视觉体验
 st.markdown(
     """
     <style>
+    /* 定制文件上传区域提示文字 */
     [data-testid="stFileUploadDropzone"] div > span { font-size: 0px !important; }
     [data-testid="stFileUploadDropzone"] div > span::after {
         content: "请将区域调查数据表格拖拽至此处" !important;
@@ -93,8 +122,10 @@ st.markdown(
     [data-testid="stFileUploadDropzone"] button::after { content: "浏览文件" !important; visibility: visible; }
     [data-testid="stFileUploadDropzone"] button { font-size: 0px !important; }
 
+    /* 全局字体回退方案，优先使用 DejaVu Sans，兼顾中英文显示 */
     html, body, [class*="css"] { font-family: "DejaVu Sans", "Source Sans Pro", "Microsoft YaHei", sans-serif; }
 
+    /* 隐藏 radio 原生圆点，改为下划线高亮样式 */
     div[role="radiogroup"] label > div:first-child { display: none !important; }
     div[role="radiogroup"] {
         display: flex; flex-direction: row; gap: 2rem !important;
@@ -113,6 +144,7 @@ st.markdown(
 )
 
 # ================= 动态渲染 Header =================
+# 根据 Logo 是否存在，采用不同布局展示标题和标识
 if bin_str:
     st.markdown(
         f"""
@@ -134,6 +166,7 @@ st.markdown("---")
 calc_engine = load_model()
 
 # ================= 4. 功能模块布局 =================
+# 使用会话状态记录当前选中的标签页，实现模块间无刷新切换
 if 'active_tab' not in st.session_state:
     st.session_state.active_tab = "单点精细诊断"
 
@@ -150,6 +183,7 @@ if selected_tab == "单点精细诊断":
     st.markdown("### 实时地块模拟")
     st.info("说明：通过调节下方环境参数，系统将实时核算特定地貌配置下的年度固碳潜力。")
 
+    # 使用左右双栏布局，分别承载气象条件与地表特征参数
     col_input_left, col_input_right = st.columns(2, gap="large")
 
     with col_input_left:
@@ -172,6 +206,7 @@ if selected_tab == "单点精细诊断":
         area_ha = st.number_input("评估地块面积 (公顷)", min_value=0.1, value=10.0, step=0.1)
         carbon_price = st.slider("模拟市场碳价 (元/吨)", 0.0, 200.0, DEFAULT_CARBON_PRICE)
 
+    # 组装特征字典，用于模型输入
     features = {'T': T, 'RH': RH, 'R': R, 'Rg': Rg, 'Slope': Slope, 'Soil_Thickness': Soil_Thickness,
                 'Rock_Outcrop': Rock_Outcrop, 'Veg_Type': Veg_Type}
 
@@ -181,9 +216,11 @@ if selected_tab == "单点精细诊断":
     if run_btn:
         st.markdown("---")
         st.subheader("报告诊断输出")
+        # 执行核心核算流程：固碳潜力预测 + 经济价值转换
         potential_val = predict_flux(calc_engine, features)
         assets = calculate_carbon_assets(potential_val, area_ha, carbon_price)
 
+        # 三栏指标卡片，直观展示核算结果
         m1, m2, m3 = st.columns(3)
         with m1:
             st.metric(label="年度核算固碳潜力", value=f"{potential_val:.4f} gC/m²/yr")
@@ -192,6 +229,7 @@ if selected_tab == "单点精细诊断":
         with m3:
             st.metric(label="生态资产综合损益", value=f"¥{assets['annual_revenue']:,.2f}")
 
+        # 基于业务红线进行风险提示
         if Soil_Thickness < 15 and Veg_Type == 1:
             st.error("严重预警：当前地块土层深度不足以支撑乔木生长。强行规划将面临极高植被退化风险。")
         elif potential_val > 0:
@@ -200,6 +238,7 @@ if selected_tab == "单点精细诊断":
             st.warning("警示：当前配置呈负向碳平衡状态，请审视植被选型或加强地力修复。")
 
         st.markdown("<br>", unsafe_allow_html=True)
+        # 并排展示温度敏感性曲线与 SHAP 贡献瀑布图
         cl, cr = st.columns(2, gap="medium")
         with cl:
             render_result_chart(calc_engine, features)
@@ -208,12 +247,14 @@ if selected_tab == "单点精细诊断":
 
         st.markdown("---")
         st.subheader("系统逆向反演：适生植被规划推荐")
+        # 遍历所有植被类型，自动扫描并排序推荐最优方案
         rec_results = []
         for v_name, v_code in VEG_MAPPING.items():
             tf = features.copy()
             tf['Veg_Type'] = v_code
             vp = predict_flux(calc_engine, tf)
             va = calculate_carbon_assets(vp, area_ha, carbon_price)
+            # 附加生态约束评价标签，辅助基层识别风险方案
             risk = "适宜"
             if Soil_Thickness < 15 and v_code == 1:
                 risk = "生存受限(土层不足)"
@@ -221,6 +262,7 @@ if selected_tab == "单点精细诊断":
                 risk = "排碳风险"
             rec_results.append({"规划方案": v_name, "年度核算固碳潜力 (gC/m²/yr)": round(vp, 4),
                                 "预期综合损益 (元)": va['annual_revenue'], "生态约束评价": risk})
+        # 按固碳潜力降序排列，便于一眼看出最优选项
         st.dataframe(pd.DataFrame(rec_results).sort_values(by="年度核算固碳潜力 (gC/m²/yr)", ascending=False),
                      width="stretch", hide_index=True)
 
@@ -229,6 +271,7 @@ elif selected_tab == "区域批量测算":
     st.markdown("### 大规模区域测算")
     st.info("说明：支持批量上传区域林班调查数据，系统将自动执行合规性校验并输出核算报表。")
 
+    # 提供标准核算模板下载，降低基层数据整理门槛
     template_df = pd.DataFrame({
         '地块编号': ['Plot_001', 'Plot_002'], '年均温度 (℃)': [15.0, 18.5], '年均相对湿度 (%)': [70.0, 65.0],
         '年降水总量 (mm)': [1000.0, 850.0], '年均太阳辐射 (W/m²)': [150.0, 200.0], '坡度 (°)': [15.0, 25.0],
@@ -240,10 +283,11 @@ elif selected_tab == "区域批量测算":
     uploaded_file = st.file_uploader(label="数据上传区", type=["csv", "xlsx"], label_visibility="collapsed")
     if uploaded_file is not None:
         try:
+            # 根据文件后缀自动选择读取引擎
             df_input = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(
                 uploaded_file)
 
-            # 清理列名以防止 KeyError
+            # 清理列名以防止因不可见字符导致的 KeyError
             df_input = sanitize_column_names(df_input)
 
             with st.spinner("正在执行系统合规性校验..."):
@@ -254,12 +298,14 @@ elif selected_tab == "区域批量测算":
 
             st.dataframe(df_clean.head(), width="stretch")
             c1, c2 = st.columns(2)
+            # 将用户友好的中文列名映射为模型所需的英文特征键
             mapping_dict = {'年均温度 (℃)': 'T', '年均相对湿度 (%)': 'RH', '年降水总量 (mm)': 'R',
                             '年均太阳辐射 (W/m²)': 'Rg', '坡度 (°)': 'Slope', '土壤厚度 (cm)': 'Soil_Thickness',
                             '裸岩率 (%)': 'Rock_Outcrop', '植被类型': 'Veg_Type'}
 
             if c1.button("执行现状资产核算", type="primary", width="stretch"):
                 with st.spinner("正在逐行执行安全核算..."):
+                    # 逐行核算当前配置下的固碳潜力与收益
                     def safe_predict_current(row):
                         features = {
                             'T': row['年均温度 (℃)'],
@@ -272,7 +318,6 @@ elif selected_tab == "区域批量测算":
                             'Veg_Type': row['植被类型']
                         }
                         return predict_flux(calc_engine, features) * 365
-
 
                     df_clean['年度核算固碳潜力'] = df_clean.apply(safe_predict_current, axis=1).round(4)
 
@@ -296,6 +341,8 @@ elif selected_tab == "区域批量测算":
 
             if c2.button("执行最优规划推演", type="secondary", width="stretch"):
                 with st.spinner("正在执行全矩阵推演 (含业务红线约束)..."):
+                    # 对每个地块遍历所有植被类型，自动筛选出固碳潜力最高的方案，
+                    # 并强制排除浅土层种植乔木的红线违规选项。
                     def simulate_optimal(row):
                         base_features = {
                             'T': row['年均温度 (℃)'],
@@ -316,6 +363,7 @@ elif selected_tab == "区域批量测算":
 
                             pot = predict_flux(calc_engine, feats) * 365
 
+                            # 若土层过薄且为乔木，直接赋予极低评分以强制规避
                             if base_features['Soil_Thickness'] < 15 and v_code == 1:
                                 pot = -99999.0
 
@@ -324,7 +372,6 @@ elif selected_tab == "区域批量测算":
                                 best_veg_name = v_name
 
                         return pd.Series([best_veg_name, max_pot])
-
 
                     df_clean[['系统推荐方案', '规划后固碳潜力']] = df_clean.apply(simulate_optimal, axis=1)
                     df_clean['规划后固碳潜力'] = df_clean['规划后固碳潜力'].round(4)
@@ -349,6 +396,7 @@ elif selected_tab == "智能生态助理":
     st.info("我是基于大语言模型的政务辅助规划助手。您可以向我提问关于碳汇核算逻辑、喀斯特地貌修复建议或系统使用说明。")
 
     try:
+        # 初始化 LLM 客户端，使用阿里云百炼 API
         client = OpenAI(
             api_key=st.secrets["ALIYUN_API_KEY"],
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"
@@ -357,12 +405,14 @@ elif selected_tab == "智能生态助理":
         st.warning("⚠️ 请确保已在云端 Secrets 中配置了 `ALIYUN_API_KEY`。")
         st.stop()
 
+    # 渲染历史对话记录
     current_messages = st.session_state.get("messages", [])
     for msg in current_messages:
         if msg["role"] != "system":
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
 
+    # 用户输入框
     if prompt := st.chat_input("您可以这样问：为什么土层厚度低于15cm时系统不建议种树？这对老百姓有什么影响？"):
         st.session_state["messages"].append({"role": "user", "content": prompt})
         with st.chat_message("user"):
@@ -371,6 +421,7 @@ elif selected_tab == "智能生态助理":
         with st.chat_message("assistant"):
             try:
                 with st.spinner("生态数据分析中..."):
+                    # 流式输出 LLM 应答，降低用户等待感
                     stream = client.chat.completions.create(
                         model="qwen3.5-flash",
                         messages=st.session_state["messages"],
@@ -381,6 +432,7 @@ elif selected_tab == "智能生态助理":
 
                 st.session_state["messages"].append({"role": "assistant", "content": full_response})
 
+                # 滑动窗口记忆管理：仅保留系统提示词与最近 10 轮对话，控制 Token 消耗
                 MAX_HISTORY = 10
                 if len(st.session_state["messages"]) > (MAX_HISTORY + 1):
                     st.session_state["messages"] = [st.session_state["messages"][0]] + st.session_state["messages"][

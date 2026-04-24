@@ -1,4 +1,11 @@
 # inspect_model.py
+"""
+Carbon_Flux_System.inspect_model
+模型审查独立脚本。
+用于在命令行环境下快速检查已训练随机森林模型的基本信息，包括模型类型、
+特征数量、特征名称以及核心超参数配置，辅助运维与开发人员验证模型兼容性。
+"""
+
 import os
 import joblib
 import pprint
@@ -9,6 +16,12 @@ MODEL_PATH = os.path.join(BASE_DIR, "models", "karst_rf_model.pkl")
 
 
 def inspect_model():
+    """
+    加载并打印模型的基础身份信息、特征要求与超参数配置。
+
+    该函数适合在模型部署前或出现预测异常时快速诊断模型状态，
+    不依赖 Streamlit 环境，可在任意 Python 终端中独立运行。
+    """
     print(f"🔍 正在读取模型文件: {MODEL_PATH}")
 
     # 尝试加载模型
@@ -30,13 +43,13 @@ def inspect_model():
     print("▶️ 2. 模型特征 (Features) 审查")
     print("-" * 40)
 
-    # 检查特征数量
+    # 检查特征数量（训练时记录的特征维度）
     if hasattr(model, 'n_features_in_'):
         print(f"必须输入的特征总数: {model.n_features_in_} 个")
     else:
         print("特征总数: 未知 (模型可能较老或未保存此属性)")
 
-    # 检查训练时绑定的具体列名 (极其关键，决定了前端表头怎么写)
+    # 检查训练时绑定的具体列名（极其关键，决定了前端表头必须与此一致）
     if hasattr(model, 'feature_names_in_'):
         print("模型底层绑定的特征列名 (请核对是否为英文):")
         for i, name in enumerate(model.feature_names_in_):
